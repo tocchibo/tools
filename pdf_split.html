@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF分割/title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.5.0/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+
+</head>
+<body>
+    <h1>PDF分割・ZIPファイルダウンロード</h1>
+    <input type="file" id="pdfFile" accept="application/pdf" />
+    <br />
+    <label for="pageRange">ページ範囲指定（例: 1-3, 5, 7-9）: </label>
+    <input type="text" id="pageRange" placeholder="1-3, 5, 7-9" />
+    <br />
+    <label for="maxPages">最大ページ数指定: </label>
+    <input type="number" id="maxPages" min="1" placeholder="例: 5" />
+    <br />
+    <button id="downloadZip">分割PDFのZIPファイルをダウンロード</button>
+    <script>
+        async function splitPDF(pdfBytes, ranges, maxPages) {
+            const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+            const pageCount = pdfDoc.getPages().length;
+
+            const result = [];
+
+            for (const range of ranges) {
+                let startPage = parseInt(range[0]);
+                let endPage = range[1] ? parseInt(range[1]) : startPage;
+
+                if (maxPages) {
+                    while (startPage <= endPage) {
+                        const currentPageEnd = Math.min(startPage + maxPages - 1, endPage);
+                        result.push([startPage, currentPageEnd]);
+                        startPage += maxPages;
+                    }
+                } else if (startPage <= pageCount && endPage <= pageCount) {
+                    result.push([startPage, endPage]);
+                }
+            }
+
+            return result;
+        }
+
+
+        async function processPDF() {
+            const pdfFile = document.getElementById('pdfFile').files[0];
+            if (!pdfFile) {
+                alert('PDFファイルが選択されていません。');
+                return;
+            }
+
+            const pageRange = document.getElementById('pageRange').value;
+            const maxPages = parseInt(document.getElementById('maxPages').value) || 0;
+            const pdfBytes = new Uint8Array(await pdfFile.arrayBuffer());
+
+            let ranges = pageRange
+                .split(',')
+                .map((range) => range.trim().split('-').map((num) => parseInt(num)));
+
+            if (!pageRange && maxPages) {
+                const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+                const pageCount = pdfDoc.getPages().length;
+                ranges.push([1, pageCount]);
+            }
+
+            const splittedRanges = await splitPDF(pdfBytes, ranges, maxPages);
+
+            const zip = new JSZip();
+            const inputPdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+
+            for (let i = 0; i < splittedRanges.length; i++) {
+                const [startPage, endPage] = splittedRanges[i];
+                const outputPdfDoc = await PDFLib.PDFDocument.create();
+                const copiedPages = await outputPdfDoc.copyPages(inputPdfDoc, Array.from({ length: endPage - startPage + 1 }, (_, j) => startPage - 1 + j));
+
+                for (const page of copiedPages) {
+                    outputPdfDoc.addPage(page);
+                }
+
+                const outputPdfBytes = await outputPdfDoc.save();
+                zip.file(`output_${i + 1}_${startPage}-${endPage}.pdf`, outputPdfBytes);
+            }
+
+            zip.generateAsync({ type: 'blob' }).then((content) => {
+                saveAs(content, 'splitted_pdf.zip');
+            });
+        }
+
+
+    document.getElementById('downloadZip').addEventListener('click', processPDF);
+</script>
+</body>
+</html>
