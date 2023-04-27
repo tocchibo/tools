@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF結合ツール</title>
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <style>
+        #pdfList {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        .pdfItem {
+            padding: 8px;
+            margin: 5px;
+            background-color: #f1f1f1;
+            cursor: move;
+        }
+    </style>
+</head>
+<body>
+    <h1>PDF結合ツール</h1>
+    <input type="file" id="pdfInput" multiple accept="application/pdf">
+    <button id="addPdfButton" onclick="addPdfsToList()">PDFをリストに追加</button>
+    <button id="mergePdfButton" onclick="mergePdfs()">PDFを結合</button>
+    <h2>結合するPDFファイル:</h2>
+    <ul id="pdfList"></ul>
+
+    <script>
+        const fileList = [];
+
+        function addPdfsToList() {
+            const pdfInput = document.getElementById('pdfInput');
+            const pdfFiles = pdfInput.files;
+            const pdfList = document.getElementById('pdfList');
+
+            for (const pdfFile of pdfFiles) {
+                fileList.push(pdfFile);
+                const li = document.createElement('li');
+                li.className = 'pdfItem';
+                li.textContent = pdfFile.name;
+                li.dataset.filename = pdfFile.name;
+                li.setAttribute('draggable', true);
+                li.addEventListener('dragstart', handleDragStart);
+                li.addEventListener('dragover', handleDragOver);
+                li.addEventListener('drop', handleDrop);
+                pdfList.appendChild(li);
+            }
+        }
+
+        function handleDragStart(e) {
+            e.dataTransfer.setData('text', e.target.dataset.filename);
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+        }
+
+        function handleDrop(e) {
+            e.preventDefault();
+            const droppedFilename = e.dataTransfer.getData('text');
+            const droppedItem = fileList.find(file => file.name === droppedFilename);
+            const currentItem = fileList.find(file => file.name === e.target.dataset.filename);
+
+            const droppedIndex = fileList.indexOf(droppedItem);
+            const currentIndex = fileList.indexOf(currentItem);
+
+            fileList[droppedIndex] = currentItem;
+            fileList[currentIndex] = droppedItem;
+
+            const pdfList = document.getElementById('pdfList');
+            pdfList.innerHTML = '';
+
+            for (const pdfFile of fileList) {
+                const li = document.createElement('li');
+                li.className = 'pdfItem';
+                li.textContent = pdfFile.name;
+                li.dataset.filename = pdfFile.name;
+                li.setAttribute('draggable', true);
+                li.addEventListener('dragstart', handleDragStart);
+                li.addEventListener('dragover', handleDragOver);
+                li.addEventListener('drop', handleDrop);
+                pdfList.appendChild(li);
+            }
+        }
+
+        async function mergePdfs() {
+            if (fileList.length === 0) {
+                alert('PDFファイルが選択されていません');
+                return;
+            }
+
+            const { PDFDocument } = PDFLib;
+            const outputPdf = await PDFDocument.create();
+
+            for (const pdfFile of fileList) {
+                const pdfBytes = await pdfFile.arrayBuffer();
+                const inputPdf = await PDFDocument.load(pdfBytes);
+                const pageCount = inputPdf.getPageCount();
+
+                for (let i = 0; i < pageCount; i++) {
+                    const [page] = await outputPdf.copyPages(inputPdf, [i]);
+                    outputPdf.addPage(page);
+                }
+            }
+
+            const mergedPdfBytes = await outputPdf.save();
+            const downloadLink = document.createElement('a');
+            const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
+
+            downloadLink.href = URL.createObjectURL(blob);
+            downloadLink.download = 'merged.pdf';
+            downloadLink.style.display = 'none';
+
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+        }
+    </script>
+</body>
+</html>
+
