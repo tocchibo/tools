@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>統合PDFツール</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.5.0/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <style>
+        /* タブのスタイル */
+        .tab {
+            display: none;
+        }
+
+        .tabButton {
+            padding: 10px;
+            cursor: pointer;
+        }
+
+        .active {
+            background-color: #ccc;
+        }
+
+        /* PDF結合ツールのスタイル */
+        #pdfList {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        .pdfItem {
+            padding: 8px;
+            margin: 5px;
+            background-color: #f1f1f1;
+            cursor: move;
+        }
+    </style>
+</head>
+<body>
+    <h1>PDF tools</h1>
+    <div>
+        <button class="tabButton" onclick="openTab('pdfToText')">PDFテキスト抽出</button>
+        <button class="tabButton" onclick="openTab('pdfSplit')">PDF分割</button>
+        <button class="tabButton" onclick="openTab('pdfMerge')">PDF結合ツ</button>
+    </div>
+
+    <div id="pdfToText" class="tab">
+        <h2>PDFからテキスト抽出</h2>
+        <input type="file" id="pdfFileToText" accept="application/pdf" />
+        <button id="extractText">テキストを抽出</button>
+        <pre id="outputText"></pre>
+        <script>
+            document.getElementById('extractText').addEventListener('click', async () => {
+                const pdfFileToText = document.getElementById('pdfFileToText').files[0];
+                if (!pdfFileToText) {
+                    alert('PDFファイルが選択されていません。');
+                    return;
+                }
+
+                const pdfBytes = new Uint8Array(await pdfFileToText.arrayBuffer());
+                const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+                const pageCount = pdfDoc.getPageCount();
+                let outputText = '';
+
+                for (let i = 0; i < pageCount; i++) {
+                    const page = pdfDoc.getPage(i);
+                    const content = await page.extractText();
+                    outputText += `ページ ${i + 1}:\n${content}\n\n`;
+                }
+
+                document.getElementById('outputText').textContent = outputText;
+            });
+        </script>
+    </div>
+    <div id="pdfSplit" class="tab">
+        <h2>PDF分割・ZIPファイルダウンロード</h2>
+        <input type="file" id="pdfFileToSplit" accept="application/pdf" />
+        <br />
+        <label for="pageRange">ページ範囲指定（例: 1-3, 5, 7-9）: </label>
+        <input type="text" id="pageRange" placeholder="1-3, 5, 7-9" />
+        <br />
+        <label for="maxPages">最大ページ数指定: </label>
+        <input type="number" id="maxPages" min="1" placeholder="例: 5" />
+        <br />
+        <button id="downloadZip">分割PDFのZIPファイルをダウンロード</button>
+        <script>
+            async function splitPDF(pdfBytes, ranges, maxPages) {
+                const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+                const pageCount = pdfDoc.getPages().length;
+
+                const result = [];
+
+                for (const range of ranges) {
+                    let startPage = parseInt(range[0]);
+                    let endPage = range[1] ? parseInt(range[1]) : startPage;
+
+                    if (maxPages) {
+                        while (startPage <= endPage) {
+                            const currentPageEnd = Math.min(startPage + maxPages - 1, endPage);
+                            result.push([startPage, currentPageEnd]);
+                            startPage += maxPages;
+                        }
+                    } else if (startPage <= pageCount && endPage <= pageCount) {
+                        result.push([startPage, endPage]);
+                    }
+                }
+
+                return result;
+            }
+
+
+            async function processPDF() {
+                const pdfFile = document.getElementById('pdfFile').files[0];
+                if (!pdfFile) {
+                    alert('PDFファイルが選択されていません。');
+                    return;
+                }
+
+                const pageRange = document.getElementById('pageRange').value;
+                const maxPages = parseInt(document.getElementById('maxPages').value) || 0;
+                const pdfBytes = new Uint8Array(await pdfFile.arrayBuffer());
+
+                let ranges = pageRange
+                    .split(',')
+                    .map((range) => range.trim().split('-').map((num) => parseInt(num)));
+
+                if (!pageRange && maxPages) {
+                    const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+                    const pageCount = pdfDoc.getPages().length;
+                    ranges.push([1, pageCount]);
+                }
+
+                const splittedRanges = await splitPDF(pdfBytes, ranges, maxPages);
+
+                const zip = new JSZip();
+                const inputPdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+
+                for (let i = 0; i < splittedRanges.length; i++) {
+                    const [startPage, endPage] = splittedRanges[i];
+                    const outputPdfDoc = await PDFLib.PDFDocument.create();
+                    const copiedPages = await outputPdfDoc.copyPages(inputPdfDoc, Array.from({ length: endPage - startPage + 1 }, (_, j) => startPage - 1 + j));
+
+                    for (const page of copiedPages) {
+                        outputPdfDoc.addPage(page);
+                    }
+
+                    const outputPdfBytes = await outputPdfDoc.save();
+                    zip.file(`output_${i + 1}_${startPage}-${endPage}.pdf`, outputPdfBytes);
+                }
+
+                zip.generateAsync({ type: 'blob' }).then((content) => {
+                    saveAs(content, 'splitted_pdf.zip');
+                });
+            }
+
+            document.getElementById('downloadZip').addEventListener('click', processPDF);
+        </script>
+    </div>
+    <div id="pdfMerge" class="tab">
+        <h2>PDF結合ツール</h2>
+        <input type="file" id="pdfInput" multiple accept="application/pdf">
+        <button id="addPdfButton" onclick="addPdfsToList()">PDFをリストに追加</button>
+        <button id="mergePdfButton" onclick="mergePdfs()">PDFを結合</button>
+        <h3>結合するPDFファイル:</h3>
+        <ul id="pdfList"></ul>
+        <script>
+            const fileList = [];
+
+            function addPdfsToList() {
+                const pdfInput = document.getElementById('pdfInput');
+                const pdfFiles = pdfInput.files;
+                const pdfList = document.getElementById('pdfList');
+
+                for (const pdfFile of pdfFiles) {
+                    fileList.push(pdfFile);
+                    const li = document.createElement('li');
+                    li.className = 'pdfItem';
+                    li.textContent = pdfFile.name;
+                    li.dataset.filename = pdfFile.name;
+                    li.setAttribute('draggable', true);
+                    li.addEventListener('dragstart', handleDragStart);
+                    li.addEventListener('dragover', handleDragOver);
+                    li.addEventListener('drop', handleDrop);
+                    pdfList.appendChild(li);
+                }
+            }
+
+            function handleDragStart(e) {
+                e.dataTransfer.setData('text', e.target.dataset.filename);
+            }
+
+            function handleDragOver(e) {
+                e.preventDefault();
+            }
+
+            function handleDrop(e) {
+                e.preventDefault();
+                const droppedFilename = e.dataTransfer.getData('text');
+                const droppedItem = fileList.find(file => file.name === droppedFilename);
+                const currentItem = fileList.find(file => file.name === e.target.dataset.filename);
+
+                const droppedIndex = fileList.indexOf(droppedItem);
+                const currentIndex = fileList.indexOf(currentItem);
+
+                fileList[droppedIndex] = currentItem;
+                fileList[currentIndex] = droppedItem;
+
+                const pdfList = document.getElementById('pdfList');
+                pdfList.innerHTML = '';
+
+                for (const pdfFile of fileList) {
+                    const li = document.createElement('li');
+                    li.className = 'pdfItem';
+                    li.textContent = pdfFile.name;
+                    li.dataset.filename = pdfFile.name;
+                    li.setAttribute('draggable', true);
+                    li.addEventListener('dragstart', handleDragStart);
+                    li.addEventListener('dragover', handleDragOver);
+                    li.addEventListener('drop', handleDrop);
+                    pdfList.appendChild(li);
+                }
+            }
+
+            async function mergePdfs() {
+                if (fileList.length === 0) {
+                    alert('PDFファイルが選択されていません');
+                    return;
+                }
+
+                const { PDFDocument } = PDFLib;
+                const outputPdf = await PDFDocument.create();
+
+                for (const pdfFile of fileList) {
+                    const pdfBytes = await pdfFile.arrayBuffer();
+                    const inputPdf = await PDFDocument.load(pdfBytes);
+                    const pageCount = inputPdf.getPageCount();
+
+                    for (let i = 0; i < pageCount; i++) {
+                        const [page] = await outputPdf.copyPages(inputPdf, [i]);
+                        outputPdf.addPage(page);
+                    }
+                }
+
+                const mergedPdfBytes = await outputPdf.save();
+                const downloadLink = document.createElement('a');
+                const blob = new Blob([mergedPdfBytes], { type: 'application/pdf' });
+
+                downloadLink.href = URL.createObjectURL(blob);
+                downloadLink.download = 'merged.pdf';
+                downloadLink.style.display = 'none';
+
+                document.body.appendChild(downloadLink);
+                downloadLink.click();
+                document.body.removeChild(downloadLink);
+            }
+        </script>
+    </div>
+
+    <script>
+        function openTab(tabId) {
+            const tabs = document.getElementsByClassName('tab');
+            for (const tab of tabs) {
+                tab.style.display = 'none';
+            }
+
+            const tabButtons = document.getElementsByClassName('tabButton');
+            for (const tabButton of tabButtons) {
+                tabButton.classList.remove('active');
+            }
+
+            document.getElementById(tabId).style.display = 'block';
+            event.currentTarget.classList.add('active');
+        }
+
+        // 最初のタブをデフォルトで開く
+        document.getElementsByClassName('tabButton')[0].click();
+    </script>
+</body>
+</html>
