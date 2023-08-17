@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Graphviz描画</title>
+  <script src="https://unpkg.com/viz.js"></script>
+  <script src="https://unpkg.com/viz.js/full.render.js"></script>
+</head>
+<body>
+  <h1>Graphviz描画</h1>
+
+  <p>Graphvizのコードを貼り付け</p>
+  <textarea id="textArea" rows="20" cols="80"></textarea>
+  <br><br>
+  <button id="updateButton">描画</button>
+  <br><br>
+  <div id="output"></div>
+
+  <script>
+    const textArea = document.getElementById('textArea');
+    const updateButton = document.getElementById('updateButton');
+    const output = document.getElementById('output');
+
+
+    updateButton.addEventListener('click', () => {
+      const text = textArea.value;
+      renderLogicModel(text);
+    });
+
+    async function renderLogicModel(dotText) {
+        try {
+            const viz = new Viz({ worker: new Worker(URL.createObjectURL(new Blob([`importScripts('https://unpkg.com/viz.js/full.render.js');`], {type: 'text/javascript'}))) });
+            const svg = await viz.renderSVGElement(dotText);
+    
+            const viewBox = `0 0 ${svg.width.baseVal.value} ${svg.height.baseVal.value}`;
+            svg.setAttribute('viewBox', viewBox);
+            svg.style.width = '100%';
+            svg.style.height = 'auto';
+    
+            output.innerHTML = '';
+            output.appendChild(svg);
+          } catch (error) {
+              console.error('Error rendering logic model:', error);
+          }
+}
+
+    window.addEventListener('resize', () => {
+        const text = textArea.value;
+        renderLogicModel(text);
+    });
+
+  </script>
+</body>
+</html>
