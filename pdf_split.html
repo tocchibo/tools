@@ -7,19 +7,36 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.5.0/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-
 </head>
 <body>
     <h1>PDF分割</h1>
-    <input type="file" id="pdfFile" accept="application/pdf" />
-    <br />
-    <label for="pageRange">ページ範囲指定（例: 1-3, 5, 7-9）: </label>
-    <input type="text" id="pageRange" placeholder="1-3, 5, 7-9" />
-    <br />
-    <label for="maxPages">最大ページ数指定: </label>
-    <input type="number" id="maxPages" min="1" placeholder="例: 5" />
-    <br />
-    <button id="downloadZip">分割PDFのZIPファイルをダウンロード</button>
+    <p>PDFを指定したページ範囲で分割できます。</p>
+    <ul>
+        <li><strong>ページ範囲指定：</strong>抽出したい特定のページまたはページ範囲を指定します（例："1-3, 5, 7-9"）。</li>
+        <li><strong>最大ページ数指定：</strong>各分割PDFの最大ページ数を指定します（例："5"）。</li>
+    </ul>
+    <ol>
+        <li>PDFファイルをアップロードしてください。
+            <br />
+            <input type="file" id="pdfFile" accept="application/pdf" />
+            <br />
+            <br />
+        </li>
+        <li>ページ範囲または最大ページ数を指定してください。</li>
+        <br />
+        <label for="pageRange">ページ範囲指定（例: 1-3, 5, 7-9）: </label>
+        <input type="text" id="pageRange" placeholder="1-3, 5, 7-9" />
+        <br />
+        <label for="maxPages">最大ページ数指定: </label>
+        <br />        
+        <br />
+        <input type="number" id="maxPages" min="1" placeholder="例: 5" />
+        <br />
+        <br />
+        <li>「分割PDFのZIPファイルをダウンロード」ボタンをクリックして、分割されたPDFをダウンロードしてください。</li>
+        <br />
+        <button id="downloadZip">分割PDFのZIPファイルをダウンロード</button>
+    </ol>
     <script>
         async function splitPDF(pdfBytes, ranges, maxPages) {
             const pdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
@@ -45,13 +62,15 @@
             return result;
         }
 
-
         async function processPDF() {
             const pdfFile = document.getElementById('pdfFile').files[0];
             if (!pdfFile) {
                 alert('PDFファイルが選択されていません。');
                 return;
             }
+
+            const originalFileName = pdfFile.name.replace('.pdf', ''); // この行を追加
+
 
             const pageRange = document.getElementById('pageRange').value;
             const maxPages = parseInt(document.getElementById('maxPages').value) || 0;
@@ -67,31 +86,34 @@
                 ranges.push([1, pageCount]);
             }
 
-            const splittedRanges = await splitPDF(pdfBytes, ranges, maxPages);
+            try {
+                const splittedRanges = await splitPDF(pdfBytes, ranges, maxPages);
+                
+                const zip = new JSZip();
+                const inputPdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
 
-            const zip = new JSZip();
-            const inputPdfDoc = await PDFLib.PDFDocument.load(pdfBytes);
+                for (let i = 0; i < splittedRanges.length; i++) {
+                    const [startPage, endPage] = splittedRanges[i];
+                    const outputPdfDoc = await PDFLib.PDFDocument.create();
+                    const copiedPages = await outputPdfDoc.copyPages(inputPdfDoc, Array.from({ length: endPage - startPage + 1 }, (_, j) => startPage - 1 + j));
 
-            for (let i = 0; i < splittedRanges.length; i++) {
-                const [startPage, endPage] = splittedRanges[i];
-                const outputPdfDoc = await PDFLib.PDFDocument.create();
-                const copiedPages = await outputPdfDoc.copyPages(inputPdfDoc, Array.from({ length: endPage - startPage + 1 }, (_, j) => startPage - 1 + j));
+                    for (const page of copiedPages) {
+                        outputPdfDoc.addPage(page);
+                    }
 
-                for (const page of copiedPages) {
-                    outputPdfDoc.addPage(page);
+                    const outputPdfBytes = await outputPdfDoc.save();
+                    zip.file(`${originalFileName}_${i + 1}_${startPage}-${endPage}.pdf`, outputPdfBytes);  // この行を修正
                 }
 
-                const outputPdfBytes = await outputPdfDoc.save();
-                zip.file(`output_${i + 1}_${startPage}-${endPage}.pdf`, outputPdfBytes);
+                zip.generateAsync({ type: 'blob' }).then((content) => {
+                    saveAs(content, `${originalFileName}_splitted_pdf.zip`);  // この行を修正
+                });
+            } catch (error) {
+                alert('エラーが発生しました: ' + error);
             }
-
-            zip.generateAsync({ type: 'blob' }).then((content) => {
-                saveAs(content, 'splitted_pdf.zip');
-            });
         }
 
-
-    document.getElementById('downloadZip').addEventListener('click', processPDF);
-</script>
+        document.getElementById('downloadZip').addEventListener('click', processPDF);
+    </script>
 </body>
 </html>
