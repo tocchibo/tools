@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Commands2Dot</title>
+  <script src="https://unpkg.com/viz.js"></script>
+  <script src="https://unpkg.com/viz.js/full.render.js"></script>
+</head>
+<body>
+  <h1>Commands2Dot</h1>
+
+  <textarea id="commands" placeholder="ここにコマンドを貼り付けてください" rows="30" cols="80"></textarea>
+  <br>
+  <button onclick="convertCommandsToDotData()">コマンドをDOTデータに変換</button>
+  <input type="file" id="fileInput" accept=".dot">
+  <br><br>
+  <textarea id="textArea" rows="20" cols="80"></textarea>
+  <br><br>
+  <button id="updateButton">表示を更新</button>
+  <button id="saveButton">保存</button>
+  <br><br>
+  <div id="output"></div>
+
+  <script>
+    const fileInput = document.getElementById('fileInput');
+    const textArea = document.getElementById('textArea');
+    const updateButton = document.getElementById('updateButton');
+    const saveButton = document.getElementById('saveButton');
+    const output = document.getElementById('output');
+
+    fileInput.addEventListener('change', async (event) => {
+      const file = event.target.files[0];
+      const text = await file.text();
+      textArea.value = text;
+      renderLogicModel(text);
+    });
+
+    updateButton.addEventListener('click', () => {
+      const text = textArea.value;
+      renderLogicModel(text);
+    });
+
+    saveButton.addEventListener('click', () => {
+      const text = textArea.value;
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'logic-model.dot';
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => {
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      }, 100);
+    });
+
+    async function renderLogicModel(dotText) {
+        try {
+            const viz = new Viz({ worker: new Worker(URL.createObjectURL(new Blob([`importScripts('https://unpkg.com/viz.js/full.render.js');`], {type: 'text/javascript'}))) });
+            const svg = await viz.renderSVGElement(dotText);
+    
+            // 変更: 描画エリアを制御する viewBox を設定
+            const viewBox = `0 0 ${svg.width.baseVal.value} ${svg.height.baseVal.value}`;
+            svg.setAttribute('viewBox', viewBox);
+            svg.style.width = '100%';
+            svg.style.height = 'auto';
+    
+            output.innerHTML = '';
+            output.appendChild(svg);
+          } catch (error) {
+              console.error('Error rendering logic model:', error);
+          }
+}
+    function generateDot(commands) {
+      const model = {
+        title: "",
+        elements: {},
+        relations: [],
+      };
+
+      const lines = commands.split(";").map(line => line.trim()).filter(line => line.length > 0);
+
+      lines.forEach(line => {
+        const tokens = line.split(" ").filter(token => token.length > 0);
+        const command = tokens.shift();
+
+        if (command === "TITLE") {
+          model.title = line.slice(7, -1);
+        } else if (command === "CREATE") {
+          const elements = line.slice(7).split(",");
+          elements.forEach(element => {
+            const [id, label] = element.trim().split(" ", 2);
+            model.elements[id] = label.slice(1, -1);
+          });
+        } else if (command === "RELATE") {
+          const pairs = line.slice(7).split(",");
+          pairs.forEach(pair => {
+            const [id1, id2] = pair.trim().split(" ");
+            model.relations.push({ from: id1, to: id2 });
+          });
+        } else if (command === "REMOVE") {
+          const elementIds = line.slice(7).split(",");
+          elementIds.forEach(id => {
+            id = id.trim();
+            delete model.elements[id];
+            model.relations = model.relations.filter(rel => rel.from !== id && rel.to !== id);
+          });
+        } else if (command === "UNRELATE") {
+          const pairs = line.slice(9).split(",");
+          pairs.forEach(pair => {
+            const [id1, id2] = pair.trim().split(" ");
+            model.relations = model.relations.filter(rel => !(rel.from === id1 && rel.to === id2));
+          });
+        } else if (command === "RENAME") { // Add this block for RENAME command
+          const elements = line.slice(7).split(",");
+          elements.forEach(element => {
+            const [id, label] = element.trim().split(" ", 2);
+            if (model.elements[id]) {
+              model.elements[id] = label.slice(1, -1);
+            }
+          });
+        }
+      });
+
+      let dotData = `digraph G {
+    graph [fontname="Arial" splines="spline"];
+    node [fontname="Arial" shape="box"];
+    edge [fontname="Arial"];
+
+    label="${model.title}";
+    labelloc="t";
+    fontsize=24;
+    rankdir="LR";
+    `;
+
+      const categories = ["input", "activity", "output", "outcome", "impact"];
+
+      categories.forEach(category => {
+        dotData += `subgraph cluster_${category} {
+    label="${category}";\n`;
+
+        for (const id in model.elements) {
+          if (id.startsWith(category.slice(0, -1))) {
+            dotData += `${id} [label="${model.elements[id].split("\\n").join("\\n")}"]\n`;
+          }
+        }
+
+        dotData += "}\n";
+      });
+
+      model.relations.forEach(relation => {
+        dotData += `${relation.from} -> ${relation.to}\n`;
+      });
+
+      dotData += "}\n";
+
+      return dotData;
+    }
+
+
+
+    function convertCommandsToDotData() {
+      const commandsTextArea = document.getElementById('commands');
+      const dotDataTextArea = document.getElementById('dotData');
+      const dotData = generateDot(commandsTextArea.value);
+      textArea.value = dotData;
+    }
+
+    window.addEventListener('resize', () => {
+        const text = textArea.value;
+        renderLogicModel(text);
+    });
+
+  </script>
+</body>
+</html>
