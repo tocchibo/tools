@@ -89,7 +89,12 @@
         rankdir="LR"
         center=true
     ];
-    node [fontname="Arial" shape="box"];
+    node [
+        fontname="Arial"
+        shape="box"
+        style="filled"
+        fillcolor="white"
+    ];
     edge [fontname="Arial"];
 
     label="${model.title}";
@@ -102,6 +107,9 @@
 
       categories.forEach(category => {
         dotData += `subgraph cluster_${category} {
+    style="filled";
+    color="transparent";
+    fillcolor="#f0f0f0";
     label="${category}"\n`;
 
         for (const id in model.elements) {
