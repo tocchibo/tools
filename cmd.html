@@ -6,74 +6,32 @@
   <title>Commands2Dot</title>
   <script src="https://unpkg.com/viz.js"></script>
   <script src="https://unpkg.com/viz.js/full.render.js"></script>
+  <style>
+    body {
+      padding: 20px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    #commands {
+      width: 100%;
+      margin-bottom: 20px;
+    }
+    #output {
+      width: 100%;
+      overflow: auto;
+    }
+  </style>
 </head>
 <body>
   <h1>Commands2Dot</h1>
 
-  <textarea id="commands" placeholder="ここにコマンドを貼り付けてください" rows="30" cols="80"></textarea>
+  <textarea id="commands" placeholder="ここにコマンドを貼り付けてください" rows="10"></textarea>
   <br>
-  <button onclick="convertCommandsToDotData()">コマンドをDOTデータに変換</button>
-  <input type="file" id="fileInput" accept=".dot">
-  <br><br>
-  <textarea id="textArea" rows="20" cols="80"></textarea>
-  <br><br>
-  <button id="updateButton">表示を更新</button>
-  <button id="saveButton">保存</button>
+  <button onclick="processCommands()">描画</button>
   <br><br>
   <div id="output"></div>
 
   <script>
-    const fileInput = document.getElementById('fileInput');
-    const textArea = document.getElementById('textArea');
-    const updateButton = document.getElementById('updateButton');
-    const saveButton = document.getElementById('saveButton');
-    const output = document.getElementById('output');
-
-    fileInput.addEventListener('change', async (event) => {
-      const file = event.target.files[0];
-      const text = await file.text();
-      textArea.value = text;
-      renderLogicModel(text);
-    });
-
-    updateButton.addEventListener('click', () => {
-      const text = textArea.value;
-      renderLogicModel(text);
-    });
-
-    saveButton.addEventListener('click', () => {
-      const text = textArea.value;
-      const blob = new Blob([text], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'logic-model.dot';
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(() => {
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }, 100);
-    });
-
-    async function renderLogicModel(dotText) {
-        try {
-            const viz = new Viz({ worker: new Worker(URL.createObjectURL(new Blob([`importScripts('https://unpkg.com/viz.js/full.render.js');`], {type: 'text/javascript'}))) });
-            const svg = await viz.renderSVGElement(dotText);
-    
-            // 変更: 描画エリアを制御する viewBox を設定
-            const viewBox = `0 0 ${svg.width.baseVal.value} ${svg.height.baseVal.value}`;
-            svg.setAttribute('viewBox', viewBox);
-            svg.style.width = '100%';
-            svg.style.height = 'auto';
-    
-            output.innerHTML = '';
-            output.appendChild(svg);
-          } catch (error) {
-              console.error('Error rendering logic model:', error);
-          }
-}
     function generateDot(commands) {
       const model = {
         title: "",
@@ -114,7 +72,7 @@
             const [id1, id2] = pair.trim().split(" ");
             model.relations = model.relations.filter(rel => !(rel.from === id1 && rel.to === id2));
           });
-        } else if (command === "RENAME") { // Add this block for RENAME command
+        } else if (command === "RENAME") {
           const elements = line.slice(7).split(",");
           elements.forEach(element => {
             const [id, label] = element.trim().split(" ", 2);
@@ -160,20 +118,36 @@
       return dotData;
     }
 
+    async function renderLogicModel(dotText) {
+      try {
+        const viz = new Viz({ worker: new Worker(URL.createObjectURL(new Blob([`importScripts('https://unpkg.com/viz.js/full.render.js');`], {type: 'text/javascript'}))) });
+        const svg = await viz.renderSVGElement(dotText);
 
+        const viewBox = `0 0 ${svg.width.baseVal.value} ${svg.height.baseVal.value}`;
+        svg.setAttribute('viewBox', viewBox);
+        svg.style.width = '100%';
+        svg.style.height = 'auto';
 
-    function convertCommandsToDotData() {
-      const commandsTextArea = document.getElementById('commands');
-      const dotDataTextArea = document.getElementById('dotData');
-      const dotData = generateDot(commandsTextArea.value);
-      textArea.value = dotData;
+        output.innerHTML = '';
+        output.appendChild(svg);
+      } catch (error) {
+        console.error('Error rendering logic model:', error);
+        output.innerHTML = '<p style="color: red;">エラーが発生しました。コマンドの構文を確認してください。</p>';
+      }
+    }
+
+    async function processCommands() {
+      const commands = document.getElementById('commands').value;
+      const dotData = generateDot(commands);
+      await renderLogicModel(dotData);
     }
 
     window.addEventListener('resize', () => {
-        const text = textArea.value;
-        renderLogicModel(text);
+      const commands = document.getElementById('commands').value;
+      if (commands) {
+        processCommands();
+      }
     });
-
   </script>
 </body>
 </html>
