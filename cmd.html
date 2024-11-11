@@ -11,32 +11,20 @@
       padding: 20px;
       max-width: 1200px;
       margin: 0 auto;
-      font-family: Arial, sans-serif;
     }
     #commands {
       width: 100%;
       margin-bottom: 20px;
-      padding: 10px;
-      border: 1px solid #ccc;
-      border-radius: 4px;
-    }
-    button {
-      padding: 8px 16px;
-      background-color: #4CAF50;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
     }
     #output {
       width: 100%;
       text-align: center;
-      margin-top: 20px;
     }
   </style>
 </head>
 <body>
   <h1>Commands2Dot</h1>
+
   <textarea id="commands" placeholder="ここにコマンドを貼り付けてください" rows="10"></textarea>
   <br>
   <button onclick="processCommands()">描画</button>
@@ -95,51 +83,26 @@
       });
 
       let dotData = `digraph G {
-    layout="dot"
-    compound=true
-    overlap=false
-    splines=true
-    rankdir="LR"
-    ranksep=1.5
-    nodesep=0.8
-    
-    node [shape=box, fontname="Arial", fontsize=20, style="rounded,filled", fillcolor=white]
-    edge [fontname="Arial", fontsize=20]
-    graph [fontname="Arial", fontsize=20]
+    graph [
+        fontname="Arial"
+        splines="spline"
+        rankdir="LR"
+        center=true
+    ];
+    node [fontname="Arial" shape="box"];
+    edge [fontname="Arial"];
 
-    label="${model.title}"
-    labelloc="t"
-    fontsize=20
+    label="${model.title}";
+    labelloc="t";
+    fontsize=24;
 
-    { rank=same; input_rank }
-    { rank=same; activity_rank }
-    { rank=same; output_rank }
-    { rank=same; outcome_rank }
-    { rank=same; impact_rank }
-    `;
-
-      // 各カテゴリーのランクノードを追加
-      dotData += `
-    input_rank [style=invis]
-    activity_rank [style=invis]
-    output_rank [style=invis]
-    outcome_rank [style=invis]
-    impact_rank [style=invis]
-
-    input_rank -> activity_rank -> output_rank -> outcome_rank -> impact_rank [style=invis]
     `;
 
       const categories = ["input", "activity", "output", "outcome", "impact"];
 
-      categories.forEach((category, index) => {
+      categories.forEach(category => {
         dotData += `subgraph cluster_${category} {
-        style="rounded"
-        color="#666666"
-        label="${category}"
-        labeljust="c"
-        
-        ${category}_rank
-        `;
+    label="${category}"\n`;
 
         for (const id in model.elements) {
           if (id.startsWith(category.slice(0, -1))) {
@@ -155,6 +118,7 @@
       });
 
       dotData += "}\n";
+
       return dotData;
     }
 
@@ -163,27 +127,16 @@
         const viz = new Viz();
         const svg = await viz.renderSVGElement(dotText);
         svg.style.maxWidth = '100%';
-        svg.style.height = 'auto';
-        
         output.innerHTML = '';
         output.appendChild(svg);
-
-        // SVGのviewBox属性を調整して中央に配置
-        const bbox = svg.getBBox();
-        const padding = 10;
-        svg.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${bbox.width + padding*2} ${bbox.height + padding*2}`);
       } catch (error) {
         console.error('Error rendering logic model:', error);
-        output.innerHTML = '<p style="color: red;">エラーが発生しました。コマンドの構文を確認してください。</p>';
+        output.innerHTML = '<p style="color: red;">エラーが発生しました</p>';
       }
     }
 
     async function processCommands() {
       const commands = document.getElementById('commands').value;
-      if (!commands.trim()) {
-        output.innerHTML = '<p style="color: orange;">コマンドを入力してください。</p>';
-        return;
-      }
       const dotData = generateDot(commands);
       await renderLogicModel(dotData);
     }
