@@ -85,7 +85,7 @@
       let dotData = `digraph G {
     graph [
         fontname="Arial"
-        splines="spline"
+        splines="line"
         rankdir="LR"
         center=true
     ];
@@ -114,7 +114,7 @@
       });
 
       model.relations.forEach(relation => {
-        dotData += `${relation.from} -> ${relation.to}\n`;
+        dotData += `${relation.from} -> ${relation.to}\n [tailport = e, headport = w]`;
       });
 
       dotData += "}\n";
