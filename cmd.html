@@ -37,7 +37,7 @@
   </style>
 </head>
 <body>
-  <textarea id="commands" placeholder="ここにチャットボットの回答を貼り付けてください" rows="10"></textarea>
+  <textarea id="commands" placeholder="ここにチャットボットの回答を貼り付けてください" rows="10" oninput="processCommands()"></textarea>
   <br>
   <div class="controls">
     <label for="splineType">線のスタイル:</label>
@@ -45,12 +45,14 @@
       <option value="line">直線</option>
       <option value="spline">曲線</option>
     </select>
-    <button onclick="processCommands()">描画</button>
     <button onclick="clearAll()">クリア</button>
   </div>
   <div id="output"></div>
 
   <script>
+    let lastProcessTime = 0;
+    const DEBOUNCE_TIME = 300; // ミリ秒単位でのディレイ
+
     function generateDot(commands) {
       const model = {
         title: "",
@@ -166,6 +168,12 @@
     }
 
     async function processCommands() {
+      const currentTime = Date.now();
+      if (currentTime - lastProcessTime < DEBOUNCE_TIME) {
+        return;
+      }
+      lastProcessTime = currentTime;
+
       const commands = document.getElementById('commands').value;
       if (commands.trim() === '') {
         document.getElementById('output').innerHTML = '';
