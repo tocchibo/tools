@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="jp">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -20,12 +20,34 @@
       width: 100%;
       text-align: center;
     }
+    .controls {
+      margin-bottom: 20px;
+    }
+    select {
+      padding: 5px;
+      margin-right: 10px;
+    }
+    label {
+      margin-right: 5px;
+    }
+    button {
+      padding: 5px 10px;
+      margin-right: 10px;
+    }
   </style>
 </head>
 <body>
-  <textarea id="commands" placeholder="ここにコマンドを貼り付けてください" rows="10"></textarea>
+  <textarea id="commands" placeholder="ここにチャットボットの回答を貼り付けてください" rows="10"></textarea>
   <br>
-  <button onclick="processCommands()">描画</button>
+  <div class="controls">
+    <label for="splineType">線のスタイル:</label>
+    <select id="splineType" onchange="processCommands()">
+      <option value="line">直線</option>
+      <option value="spline">曲線</option>
+    </select>
+    <button onclick="processCommands()">描画</button>
+    <button onclick="clearAll()">クリア</button>
+  </div>
   <div id="output"></div>
 
   <script>
@@ -80,10 +102,12 @@
         }
       });
 
+      const splineType = document.getElementById('splineType').value;
+
       let dotData = `digraph G {
     graph [
         fontname="Arial"
-        splines="spline"
+        splines="${splineType}"
         rankdir="LR"
         center=true
     ];
@@ -107,7 +131,7 @@
         dotData += `subgraph cluster_${category} {
     style="filled";
     color="transparent";
-    fillcolor="#f0f0f0";
+    fillcolor="#f5f5f5";
     label="${category}"\n`;
 
         for (const id in model.elements) {
@@ -143,8 +167,17 @@
 
     async function processCommands() {
       const commands = document.getElementById('commands').value;
+      if (commands.trim() === '') {
+        document.getElementById('output').innerHTML = '';
+        return;
+      }
       const dotData = generateDot(commands);
       await renderLogicModel(dotData);
+    }
+
+    function clearAll() {
+      document.getElementById('commands').value = '';
+      document.getElementById('output').innerHTML = '';
     }
   </script>
 </body>
