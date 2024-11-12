@@ -34,6 +34,15 @@
       padding: 5px 10px;
       margin-right: 10px;
     }
+    .copy-success {
+      color: green;
+      display: none;
+      margin-left: 10px;
+    }
+    /* 非表示のcanvas */
+    #tempCanvas {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -45,13 +54,135 @@
       <option value="line">直線</option>
       <option value="spline">曲線</option>
     </select>
+    
+    <label for="edgeType">エッジのスタイル:</label>
+    <select id="edgeType" onchange="processCommands()">
+      <option value="line">線</option>
+      <option value="arrow">矢印</option>
+    </select>
+    
     <button onclick="clearAll()">クリア</button>
+    <button onclick="copyAsPNG()" id="pngButton">画像としてコピー</button>
+    <button onclick="copySVG()" id="copyButton">SVGとしてコピー(ppt貼付用)</button>
+    <span id="copySuccess" class="copy-success">✓ コピーしました</span>
   </div>
   <div id="output"></div>
+  <canvas id="tempCanvas"></canvas>
 
   <script>
     let lastProcessTime = 0;
-    const DEBOUNCE_TIME = 300; // ミリ秒単位でのディレイ
+    const DEBOUNCE_TIME = 300;
+
+    function showCopySuccess() {
+      const successMsg = document.getElementById('copySuccess');
+      successMsg.style.display = 'inline';
+      setTimeout(() => {
+        successMsg.style.display = 'none';
+      }, 2000);
+    }
+
+    async function copyAsPNG() {
+      const svg = document.querySelector('#output svg');
+      if (!svg) {
+        alert('ロジックモデルが生成されていません');
+        return;
+      }
+
+      try {
+        // SVGのviewBoxから元の幅と高さを取得
+        const viewBox = svg.viewBox.baseVal;
+        const originalWidth = viewBox.width;
+        const originalHeight = viewBox.height;
+
+        // スケーリング係数を取得
+        const scale = window.devicePixelRatio || 1;
+        const padding = 40;
+
+        // キャンバスのサイズを設定（パディングとスケールを考慮）
+        const canvas = document.getElementById('tempCanvas');
+        canvas.width = Math.ceil((originalWidth + padding * 2) * scale);
+        canvas.height = Math.ceil((originalHeight + padding * 2) * scale);
+        const ctx = canvas.getContext('2d');
+
+        // 背景を白に塗る
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // SVGデータを準備
+        const serializer = new XMLSerializer();
+        const svgData = serializer.serializeToString(svg);
+        const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' });
+        const url = URL.createObjectURL(svgBlob);
+
+        // 画像として読み込んで描画
+        const img = new Image();
+        img.onload = async () => {
+          try {
+            // アスペクト比を維持して描画
+            ctx.drawImage(
+              img,
+              padding * scale,  // x座標
+              padding * scale,  // y座標
+              originalWidth * scale,  // 元の幅にスケーリングを適用
+              originalHeight * scale  // 元の高さにスケーリングを適用
+            );
+
+            URL.revokeObjectURL(url);
+
+            // PNGとしてクリップボードにコピー
+            const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+            const item = new ClipboardItem({ 'image/png': blob });
+            await navigator.clipboard.write([item]);
+            showCopySuccess();
+          } catch (err) {
+            console.error('クリップボードへのコピーに失敗しました:', err);
+            alert('クリップボードへのコピーに失敗しました');
+          }
+        };
+
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          throw new Error('画像の読み込みに失敗しました');
+        };
+
+        img.src = url;
+
+      } catch (err) {
+        console.error('PNGの生成に失敗しました:', err);
+        alert('PNGの生成とコピーに失敗しました');
+      }
+    }
+
+    async function copySVG() {
+      const svg = document.querySelector('#output svg');
+      if (!svg) {
+        alert('ロジックモデルが生成されていません');
+        return;
+      }
+
+      try {
+        // SVGの文字列を取得
+        const serializer = new XMLSerializer();
+        const svgString = serializer.serializeToString(svg);
+        
+        try {
+          // SVG形式でコピーを試みる
+          const blob = new Blob([svgString], {type: 'image/svg+xml'});
+          const item = new ClipboardItem({
+            'image/svg+xml': blob
+          });
+          await navigator.clipboard.write([item]);
+        } catch (err) {
+          // 失敗した場合、テキストとしてコピー
+          await navigator.clipboard.writeText(svgString);
+        }
+        
+        showCopySuccess();
+      } catch (err) {
+        console.error('SVGのコピーに失敗しました:', err);
+        alert('SVGのコピーに失敗しました');
+      }
+    }
 
     function generateDot(commands) {
       const model = {
@@ -105,6 +236,7 @@
       });
 
       const splineType = document.getElementById('splineType').value;
+      const edgeType = document.getElementById('edgeType').value;
 
       let dotData = `digraph G {
     graph [
@@ -119,7 +251,7 @@
         style="filled"
         fillcolor="white"
     ];
-    edge [fontname="Arial"];
+    edge [fontname="Arial"${edgeType === "line" ? ", arrowhead=none" : ""}];
 
     label="${model.title}";
     labelloc="t";
