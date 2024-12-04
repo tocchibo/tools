@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>クリップボードAPI テスト</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .test-group {
+            border: 1px solid #ccc;
+            margin-bottom: 20px;
+            padding: 15px;
+        }
+        button {
+            margin: 5px;
+            padding: 5px 10px;
+        }
+        .result {
+            margin-top: 10px;
+            font-size: 0.9em;
+            color: #666;
+        }
+        .success {
+            color: green;
+        }
+        .error {
+            color: red;
+        }
+    </style>
+</head>
+<body>
+    <h1>クリップボードAPI テスト</h1>
+    
+    <!-- テキストのコピーテスト -->
+    <div class="test-group">
+        <h2>1. テキストのコピー</h2>
+        
+        <div>
+            <button onclick="testTextCopy('modern')">
+                モダンAPI: テキストコピー
+            </button>
+            <button onclick="testTextCopy('legacy')">
+                レガシーAPI: テキストコピー
+            </button>
+            <div id="textCopyResult" class="result"></div>
+        </div>
+    </div>
+
+    <!-- SVGのコピーテスト -->
+    <div class="test-group">
+        <h2>2. SVGのコピー</h2>
+        
+        <div>
+            <button onclick="testSvgCopy('modern')">
+                モダンAPI: SVGコピー
+            </button>
+            <button onclick="testSvgCopy('legacy')">
+                レガシーAPI: SVGコピー
+            </button>
+            <button onclick="testSvgCopy('text')">
+                テキストとしてSVGコピー
+            </button>
+            <div id="svgCopyResult" class="result"></div>
+        </div>
+    </div>
+
+    <!-- 画像のコピーテスト -->
+    <div class="test-group">
+        <h2>3. 画像のコピー</h2>
+        
+        <div>
+            <button onclick="testImageCopy('modern')">
+                モダンAPI: 画像コピー
+            </button>
+            <button onclick="testImageCopy('legacy')">
+                レガシーAPI: 画像コピー
+            </button>
+            <div id="imageCopyResult" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        // テスト結果を表示する関数
+        function showResult(elementId, success, message) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = 'result ' + (success ? 'success' : 'error');
+        }
+
+        // 1. テキストのコピーテスト
+        async function testTextCopy(method) {
+            const testText = 'これはテストテキストです';
+            try {
+                if (method === 'modern') {
+                    await navigator.clipboard.writeText(testText);
+                    showResult('textCopyResult', true, 'モダンAPI: コピー成功');
+                } else {
+                    const textarea = document.createElement('textarea');
+                    textarea.value = testText;
+                    document.body.appendChild(textarea);
+                    textarea.select();
+                    const success = document.execCommand('copy');
+                    document.body.removeChild(textarea);
+                    showResult('textCopyResult', success, 'レガシーAPI: ' + (success ? 'コピー成功' : 'コピー失敗'));
+                }
+            } catch (err) {
+                showResult('textCopyResult', false, `${method}: エラー - ${err.message}`);
+            }
+        }
+
+        // 2. SVGのコピーテスト
+        async function testSvgCopy(method) {
+            const svgContent = `
+                <svg xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+                    <circle cx="50" cy="50" r="40" stroke="black" stroke-width="3" fill="red"/>
+                </svg>`;
+
+            try {
+                if (method === 'modern') {
+                    const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+                    const clipboardItem = new ClipboardItem({ 'image/svg+xml': blob });
+                    await navigator.clipboard.write([clipboardItem]);
+                    showResult('svgCopyResult', true, 'モダンAPI: SVGコピー成功');
+                } else if (method === 'legacy') {
+                    const div = document.createElement('div');
+                    div.innerHTML = svgContent;
+                    document.body.appendChild(div);
+                    const range = document.createRange();
+                    range.selectNode(div);
+                    const selection = window.getSelection();
+                    selection.removeAllRanges();
+                    selection.addRange(range);
+                    const success = document.execCommand('copy');
+                    document.body.removeChild(div);
+                    showResult('svgCopyResult', success, 'レガシーAPI: ' + (success ? 'SVGコピー成功' : 'SVGコピー失敗'));
+                } else if (method === 'text') {
+                    await navigator.clipboard.writeText(svgContent);
+                    showResult('svgCopyResult', true, 'テキストとして: SVGコピー成功');
+                }
+            } catch (err) {
+                showResult('svgCopyResult', false, `${method}: エラー - ${err.message}`);
+            }
+        }
+
+        // 3. 画像のコピーテスト
+        async function testImageCopy(method) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 100;
+            canvas.height = 100;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'blue';
+            ctx.fillRect(0, 0, 100, 100);
+
+            try {
+                if (method === 'modern') {
+                    const blob = await new Promise(resolve => canvas.toBlob(resolve));
+                    const clipboardItem = new ClipboardItem({ 'image/png': blob });
+                    await navigator.clipboard.write([clipboardItem]);
+                    showResult('imageCopyResult', true, 'モダンAPI: 画像コピー成功');
+                } else if (method === 'legacy') {
+                    canvas.toBlob(async blob => {
+                        try {
+                            const item = new ClipboardItem({ 'image/png': blob });
+                            await navigator.clipboard.write([item]);
+                            showResult('imageCopyResult', true, 'レガシーAPI: 画像コピー成功');
+                        } catch (err) {
+                            showResult('imageCopyResult', false, `レガシーAPI: エラー - ${err.message}`);
+                        }
+                    });
+                }
+            } catch (err) {
+                showResult('imageCopyResult', false, `${method}: エラー - ${err.message}`);
+            }
+        }
+    </script>
+</body>
+</html>
