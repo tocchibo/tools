@@ -223,9 +223,36 @@
             
             // Add event listeners to the new inputs
             const dateInput = entryDiv.querySelector('.date');
+            const dayOfWeekElement = entryDiv.querySelector('.day-of-week');
             const startTimeInput = entryDiv.querySelector('.start-time');
             const endTimeInput = entryDiv.querySelector('.end-time');
             const removeBtn = entryDiv.querySelector('.remove-btn');
+            
+            // Get values from the last entry if available
+            const existingEntries = document.querySelectorAll('.date-entry');
+            if (existingEntries.length > 1) {
+                // Get the last entry (index = length - 2 because we just added a new one)
+                const lastEntry = existingEntries[existingEntries.length - 2];
+                
+                const lastDateInput = lastEntry.querySelector('.date');
+                const lastDayOfWeek = lastEntry.querySelector('.day-of-week');
+                const lastStartTime = lastEntry.querySelector('.start-time');
+                const lastEndTime = lastEntry.querySelector('.end-time');
+                
+                // Copy values from the last entry
+                if (lastDateInput.value) {
+                    dateInput.value = lastDateInput.value;
+                    dayOfWeekElement.textContent = lastDayOfWeek.textContent;
+                }
+                
+                if (lastStartTime.value) {
+                    startTimeInput.value = lastStartTime.value;
+                }
+                
+                if (lastEndTime.value) {
+                    endTimeInput.value = lastEndTime.value;
+                }
+            }
             
             dateInput.addEventListener('blur', handleDateInput);
             dateInput.addEventListener('keypress', function(e) {
@@ -255,6 +282,9 @@
                 dateEntries.removeChild(entryDiv);
                 updateFormattedResults();
             });
+            
+            // Update formatted results since we've added new entry with values
+            updateFormattedResults();
         }
 
         // Handle date input - parse and format date
