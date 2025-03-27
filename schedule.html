@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>日程候補作成ツール</title>
+    <!-- Flatpickrライブラリとスタイルシートを追加 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/themes/material_blue.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/l10n/ja.min.js"></script>
     <style>
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
@@ -61,6 +66,8 @@
         .date-input input {
             width: 100%;
             padding-right: 40px; /* Space for day of week */
+            cursor: pointer; /* カーソルをポインターに変更 */
+            background-color: white; /* 背景を白に */
         }
 
         .day-of-week {
@@ -151,7 +158,7 @@
         
         .highlight-new-entry {
             background-color: #ebf5fb; /* 薄い青色の背景 */
-            transition: background-color 1.5s ease;
+            transition: background-color 0.8s ease-out;
         }
 
         #addDateBtn {
@@ -207,7 +214,7 @@
             opacity: 0.9;
         }
         
-        /* 新しいスタイル - ツールチップ */
+        /* ツールチップ */
         .tooltip {
             position: relative;
         }
@@ -234,12 +241,23 @@
             opacity: 1;
             visibility: visible;
         }
+        
+        /* Flatpickrカスタマイズ */
+        .flatpickr-calendar {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            box-shadow: 0 3px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .flatpickr-day.selected {
+            background: #3498db;
+            border-color: #3498db;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>日程候補作成ツール</h1>
-        <div class="instructions">各欄にマウスを置いてマウスホイールを上下するだけで、空欄からでも日時を簡単に入力・調整できます</div>
+        <div class="instructions">日付欄のクリックでカレンダー表示、全ての入力欄はホイールスクロールで素早く調整できます</div>
         
         <div id="dateEntries">
             <!-- Date entries will be added here -->
@@ -302,7 +320,10 @@
         function addDateEntry(afterElement = null) {
             const dateEntries = document.getElementById('dateEntries');
             
-            // 青い線のインジケーターは使用しない
+            // 先に既存のハイライトをすべて消す
+            document.querySelectorAll('.highlight-new-entry').forEach(el => {
+                el.classList.remove('highlight-new-entry');
+            });
             
             const entryDiv = document.createElement('div');
             entryDiv.className = 'date-entry highlight-new-entry';
@@ -330,10 +351,12 @@
                 dateEntries.appendChild(entryDiv);
             }
             
-            // ハイライト効果を1.5秒後に消す
+            // ハイライト効果を0.8秒後に消す
             setTimeout(() => {
-                entryDiv.classList.remove('highlight-new-entry');
-            }, 1500);
+                if (entryDiv.classList.contains('highlight-new-entry')) {
+                    entryDiv.classList.remove('highlight-new-entry');
+                }
+            }, 800);
             
             
             // Add event listeners to the new inputs
@@ -375,12 +398,10 @@
                 }
             }
             
-            dateInput.addEventListener('blur', handleDateInput);
-            dateInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    handleDateInput.call(this);
-                }
-            });
+            // 新しい日付ピッカーを初期化
+            initializeDatePicker(dateInput, dayOfWeekElement);
+            
+            // マウスホイールイベントも追加
             dateInput.addEventListener('wheel', handleDateWheel);
             
             startTimeInput.addEventListener('blur', handleStartTimeInput);
@@ -417,30 +438,156 @@
             // Update formatted results since we've added new entry with values
             updateFormattedResults();
         }
-
-        // Handle date input - parse and format date
-        function handleDateInput() {
+        
+        // 日付ピッカーを初期化する関数
+        function initializeDatePicker(dateInput, dayOfWeekElement) {
+            const fp = flatpickr(dateInput, {
+                dateFormat: "Y/m/d",
+                locale: "ja",
+                disableMobile: true,
+                allowInput: true,
+                onChange: function(selectedDates, dateStr, instance) {
+                    if (selectedDates.length > 0) {
+                        const date = selectedDates[0];
+                        const dayOfWeek = getDayOfWeekJapanese(date);
+                        dayOfWeekElement.textContent = `(${dayOfWeek})`;
+                        updateFormattedResults();
+                    }
+                }
+            });
+            
+            // 今日の日付をセットする（選択されていない場合）
+            if (!dateInput.value) {
+                const dateEntries = document.querySelectorAll('.date-entry');
+                let entryIndex = -1;
+                let currentEntry = dateInput.closest('.date-entry');
+                
+                for (let i = 0; i < dateEntries.length; i++) {
+                    if (dateEntries[i] === currentEntry) {
+                        entryIndex = i;
+                        break;
+                    }
+                }
+                
+                let dateToUse = new Date();
+                
+                if (entryIndex > 0) {
+                    const previousDateInput = dateEntries[entryIndex - 1].querySelector('.date');
+                    if (previousDateInput && previousDateInput.value) {
+                        const previousDate = parseFlexibleDate(previousDateInput.value);
+                        if (previousDate && previousDate > dateToUse) {
+                            dateToUse = previousDate;
+                        }
+                    }
+                }
+                
+                fp.setDate(dateToUse);
+                const dayOfWeek = getDayOfWeekJapanese(dateToUse);
+                dayOfWeekElement.textContent = `(${dayOfWeek})`;
+            }
+        }
+        
+        // Handling date wheel event
+        function handleDateWheel(event) {
+            event.preventDefault();
+            
             const dateInput = this;
-            const dateValue = dateInput.value.trim();
+            let dateValue = dateInput.value.trim();
             
-            if (!dateValue) return;
-            
-            const parsedDate = parseFlexibleDate(dateValue);
-            
-            if (parsedDate) {
-                // Format date as YYYY/MM/DD
-                const year = parsedDate.getFullYear();
-                const month = (parsedDate.getMonth() + 1).toString().padStart(2, '0');
-                const day = parsedDate.getDate().toString().padStart(2, '0');
+            // If no date is entered, use today's date or the date from the previous entry
+            if (!dateValue) {
+                // Get today's date
+                const today = new Date();
+                
+                // Check for previous entry's date
+                const dateEntries = document.querySelectorAll('.date-entry');
+                let entryIndex = -1;
+                let currentEntry = dateInput.closest('.date-entry');
+                
+                for (let i = 0; i < dateEntries.length; i++) {
+                    if (dateEntries[i] === currentEntry) {
+                        entryIndex = i;
+                        break;
+                    }
+                }
+                
+                let previousDate = null;
+                if (entryIndex > 0) {
+                    const previousDateInput = dateEntries[entryIndex - 1].querySelector('.date');
+                    if (previousDateInput && previousDateInput.value) {
+                        previousDate = parseFlexibleDate(previousDateInput.value);
+                    }
+                }
+                
+                // Use the later of today or the previous entry's date
+                let dateToUse = today;
+                if (previousDate && previousDate > today) {
+                    dateToUse = previousDate;
+                }
+                
+                // Format as YYYY/MM/DD
+                const year = dateToUse.getFullYear();
+                const month = (dateToUse.getMonth() + 1).toString().padStart(2, '0');
+                const day = dateToUse.getDate().toString().padStart(2, '0');
                 dateInput.value = `${year}/${month}/${day}`;
                 
                 // Update day of week
                 const dayOfWeekElement = dateInput.closest('.date-entry').querySelector('.day-of-week');
-                const dayOfWeek = getDayOfWeekJapanese(parsedDate);
+                const dayOfWeek = getDayOfWeekJapanese(dateToUse);
                 dayOfWeekElement.textContent = `(${dayOfWeek})`;
+                
+                // Update formatted results
+                updateFormattedResults();
+                
+                // Return early without adjusting the date
+                return;
             }
             
+            // Parse the current date
+            const currentDate = parseFlexibleDate(dateValue);
+            if (!currentDate) return;
+            
+            // Adjust the date based on wheel direction
+            if (event.deltaY < 0) {
+                // Scroll up - decrement date by 1 day
+                currentDate.setDate(currentDate.getDate() - 1);
+            } else {
+                // Scroll down - increment date by 1 day
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            // Format the new date as YYYY/MM/DD
+            const year = currentDate.getFullYear();
+            const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
+            const day = currentDate.getDate().toString().padStart(2, '0');
+            dateInput.value = `${year}/${month}/${day}`;
+            
+            // Update day of week
+            const dayOfWeekElement = dateInput.closest('.date-entry').querySelector('.day-of-week');
+            const dayOfWeek = getDayOfWeekJapanese(currentDate);
+            dayOfWeekElement.textContent = `(${dayOfWeek})`;
+            
+            // Update flatpickr instance
+            const flatpickrInstance = dateInput._flatpickr;
+            if (flatpickrInstance) {
+                flatpickrInstance.setDate(currentDate, true);
+            }
+            
+            // Update formatted results
             updateFormattedResults();
+        }
+
+        // Convert full-width characters to half-width
+        function convertFullWidthToHalfWidth(str) {
+            return str.replace(/[！-～]/g, function(s) {
+                return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+            }).replace(/　/g, ' ');
+        }
+
+        // Get Japanese day of week
+        function getDayOfWeekJapanese(date) {
+            const daysJp = ['日', '月', '火', '水', '木', '金', '土'];
+            return daysJp[date.getDay()];
         }
 
         // Parse date with flexible formats
@@ -541,19 +688,6 @@
             return inputDate;
         }
 
-        // Convert full-width characters to half-width
-        function convertFullWidthToHalfWidth(str) {
-            return str.replace(/[！-～]/g, function(s) {
-                return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
-            }).replace(/　/g, ' ');
-        }
-
-        // Get Japanese day of week
-        function getDayOfWeekJapanese(date) {
-            const daysJp = ['日', '月', '火', '水', '木', '金', '土'];
-            return daysJp[date.getDay()];
-        }
-
         // Handle start time input
         function handleStartTimeInput() {
             const startTimeInput = this;
@@ -648,90 +782,6 @@
             return now;
         }
 
-        // Handling date wheel event
-        function handleDateWheel(event) {
-            event.preventDefault();
-            
-            const dateInput = this;
-            let dateValue = dateInput.value.trim();
-            
-            // If no date is entered, use today's date or the date from the previous entry
-            if (!dateValue) {
-                // Get today's date
-                const today = new Date();
-                
-                // Check for previous entry's date
-                const dateEntries = document.querySelectorAll('.date-entry');
-                let entryIndex = -1;
-                let currentEntry = dateInput.closest('.date-entry');
-                
-                for (let i = 0; i < dateEntries.length; i++) {
-                    if (dateEntries[i] === currentEntry) {
-                        entryIndex = i;
-                        break;
-                    }
-                }
-                
-                let previousDate = null;
-                if (entryIndex > 0) {
-                    const previousDateInput = dateEntries[entryIndex - 1].querySelector('.date');
-                    if (previousDateInput && previousDateInput.value) {
-                        previousDate = parseFlexibleDate(previousDateInput.value);
-                    }
-                }
-                
-                // Use the later of today or the previous entry's date
-                let dateToUse = today;
-                if (previousDate && previousDate > today) {
-                    dateToUse = previousDate;
-                }
-                
-                // Format as YYYY/MM/DD
-                const year = dateToUse.getFullYear();
-                const month = (dateToUse.getMonth() + 1).toString().padStart(2, '0');
-                const day = dateToUse.getDate().toString().padStart(2, '0');
-                dateInput.value = `${year}/${month}/${day}`;
-                
-                // Update day of week
-                const dayOfWeekElement = dateInput.closest('.date-entry').querySelector('.day-of-week');
-                const dayOfWeek = getDayOfWeekJapanese(dateToUse);
-                dayOfWeekElement.textContent = `(${dayOfWeek})`;
-                
-                // Update formatted results
-                updateFormattedResults();
-                
-                // Return early without adjusting the date
-                return;
-            }
-            
-            // Parse the current date
-            const currentDate = parseFlexibleDate(dateValue);
-            if (!currentDate) return;
-            
-            // Adjust the date based on wheel direction
-            if (event.deltaY < 0) {
-                // Scroll up - decrement date by 1 day
-                currentDate.setDate(currentDate.getDate() - 1);
-            } else {
-                // Scroll down - increment date by 1 day
-                currentDate.setDate(currentDate.getDate() + 1);
-            }
-            
-            // Format the new date as YYYY/MM/DD
-            const year = currentDate.getFullYear();
-            const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
-            const day = currentDate.getDate().toString().padStart(2, '0');
-            dateInput.value = `${year}/${month}/${day}`;
-            
-            // Update day of week
-            const dayOfWeekElement = dateInput.closest('.date-entry').querySelector('.day-of-week');
-            const dayOfWeek = getDayOfWeekJapanese(currentDate);
-            dayOfWeekElement.textContent = `(${dayOfWeek})`;
-            
-            // Update formatted results
-            updateFormattedResults();
-        }
-        
         // Handling start time wheel event
         function handleStartTimeWheel(event) {
             event.preventDefault();
