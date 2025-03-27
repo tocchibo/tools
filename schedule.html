@@ -30,6 +30,13 @@
         h1 {
             text-align: center;
             color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        
+        .instructions {
+            text-align: center;
+            color: #7f8c8d;
+            font-size: 14px;
             margin-bottom: 30px;
         }
 
@@ -41,6 +48,7 @@
             padding: 12px;
             border-radius: 6px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            position: relative;
         }
 
         .date-input {
@@ -101,6 +109,11 @@
             cursor: ns-resize;
         }
 
+        .entry-actions {
+            display: flex;
+            align-items: center;
+        }
+
         .remove-btn {
             background-color: #e74c3c;
             color: white;
@@ -113,7 +126,32 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-left: 10px;
+            margin-left: 5px;
+        }
+
+        .add-inline-btn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 5px;
+        }
+
+        .insertion-indicator {
+            height: 3px;
+            background-color: #3498db;
+            margin: -10px 0 15px;
+            border-radius: 3px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            pointer-events: none;
         }
 
         #addDateBtn {
@@ -168,17 +206,49 @@
         button:hover {
             opacity: 0.9;
         }
+        
+        /* 新しいスタイル - ツールチップ */
+        .tooltip {
+            position: relative;
+        }
+        
+        .tooltip:before {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 120%;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 5px 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+            z-index: 10;
+        }
+        
+        .tooltip:hover:before {
+            opacity: 1;
+            visibility: visible;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>日程候補作成ツール</h1>
+        <div class="instructions">各欄にマウスを置いてマウスホイールを上下するだけで、空欄からでも日時を簡単に入力・調整できます</div>
         
         <div id="dateEntries">
             <!-- Date entries will be added here -->
         </div>
         
-        <button id="addDateBtn">+ 日程を追加</button>
+        <div id="emptyState" style="text-align: center; margin: 20px 0; display: none;">
+            <button id="addFirstDateBtn" class="add-inline-btn" style="width: 36px; height: 36px; font-size: 20px; margin: 0 auto;">+</button>
+            <p style="color: #7f8c8d; margin-top: 10px; font-size: 14px;">日程を追加</p>
+        </div>
         
         <div class="results-container">
             <h2>フォーマット済み日程</h2>
@@ -190,19 +260,70 @@
     <script>
         // Initialize when document is ready
         document.addEventListener('DOMContentLoaded', function() {
-            // Add event listener to the add date button
-            document.getElementById('addDateBtn').addEventListener('click', addDateEntry);
-            
             // Add first date entry
             addDateEntry();
+            
+            // Setup empty state handler
+            setupEmptyState();
             
             // Add event listener to copy button
             document.getElementById('copyBtn').addEventListener('click', copyToClipboard);
         });
+        
+        // Setup empty state visibility and handlers
+        function setupEmptyState() {
+            const emptyState = document.getElementById('emptyState');
+            const dateEntries = document.getElementById('dateEntries');
+            
+            // Check if there are any entries
+            function updateEmptyState() {
+                if (dateEntries.children.length === 0) {
+                    emptyState.style.display = 'block';
+                } else {
+                    emptyState.style.display = 'none';
+                }
+            }
+            
+            // Add event listener for the add first date button
+            document.getElementById('addFirstDateBtn').addEventListener('click', function() {
+                addDateEntry();
+                updateEmptyState();
+            });
+            
+            // Initial check
+            updateEmptyState();
+            
+            // Create a MutationObserver to watch for changes to the dateEntries div
+            const observer = new MutationObserver(updateEmptyState);
+            observer.observe(dateEntries, { childList: true });
+        }
 
         // Function to add a new date entry
-        function addDateEntry() {
+        function addDateEntry(afterElement = null) {
             const dateEntries = document.getElementById('dateEntries');
+            
+            // Create insertion indicator if adding after a specific element
+            let insertionIndicator = null;
+            if (afterElement) {
+                insertionIndicator = document.createElement('div');
+                insertionIndicator.className = 'insertion-indicator';
+                dateEntries.insertBefore(insertionIndicator, afterElement.nextSibling);
+                
+                // Animate insertion indicator
+                setTimeout(() => {
+                    insertionIndicator.style.opacity = '1';
+                }, 10);
+                
+                setTimeout(() => {
+                    insertionIndicator.style.opacity = '0';
+                    setTimeout(() => {
+                        if (insertionIndicator.parentNode) {
+                            insertionIndicator.parentNode.removeChild(insertionIndicator);
+                        }
+                    }, 200);
+                }, 1000);
+            }
+            
             const entryDiv = document.createElement('div');
             entryDiv.className = 'date-entry';
             
@@ -216,10 +337,21 @@
                     <span>～</span>
                     <input type="text" class="end-time" placeholder="終了時間">
                 </div>
-                <button class="remove-btn">×</button>
+                <div class="entry-actions">
+                    <button class="add-inline-btn tooltip" data-tooltip="この後に日程を追加">+</button>
+                    <button class="remove-btn tooltip" data-tooltip="この日程を削除">×</button>
+                </div>
             `;
             
-            dateEntries.appendChild(entryDiv);
+            // Insert the new entry at the specified position or at the end
+            if (afterElement) {
+                dateEntries.insertBefore(entryDiv, afterElement.nextSibling);
+                if (insertionIndicator) {
+                    dateEntries.insertBefore(insertionIndicator, entryDiv.nextSibling);
+                }
+            } else {
+                dateEntries.appendChild(entryDiv);
+            }
             
             // Add event listeners to the new inputs
             const dateInput = entryDiv.querySelector('.date');
@@ -227,30 +359,36 @@
             const startTimeInput = entryDiv.querySelector('.start-time');
             const endTimeInput = entryDiv.querySelector('.end-time');
             const removeBtn = entryDiv.querySelector('.remove-btn');
+            const addInlineBtn = entryDiv.querySelector('.add-inline-btn');
             
-            // Get values from the last entry if available
-            const existingEntries = document.querySelectorAll('.date-entry');
-            if (existingEntries.length > 1) {
-                // Get the last entry (index = length - 2 because we just added a new one)
-                const lastEntry = existingEntries[existingEntries.length - 2];
+            // Get values from the reference entry if provided, otherwise try to get from the last entry
+            let referenceEntry = afterElement;
+            
+            if (!referenceEntry && dateEntries.children.length > 1) {
+                // If no reference entry is provided and there are existing entries,
+                // use the last entry as reference
+                referenceEntry = dateEntries.children[dateEntries.children.length - 2];
+            }
+            
+            if (referenceEntry) {
+                const refDateInput = referenceEntry.querySelector('.date');
+                const refDayOfWeek = referenceEntry.querySelector('.day-of-week');
+                const refStartTime = referenceEntry.querySelector('.start-time');
+                const refEndTime = referenceEntry.querySelector('.end-time');
                 
-                const lastDateInput = lastEntry.querySelector('.date');
-                const lastDayOfWeek = lastEntry.querySelector('.day-of-week');
-                const lastStartTime = lastEntry.querySelector('.start-time');
-                const lastEndTime = lastEntry.querySelector('.end-time');
-                
-                // Copy values from the last entry
-                if (lastDateInput.value) {
-                    dateInput.value = lastDateInput.value;
-                    dayOfWeekElement.textContent = lastDayOfWeek.textContent;
+                // Copy values from the reference entry
+                if (refDateInput.value) {
+                    // Copy the date exactly as it is
+                    dateInput.value = refDateInput.value;
+                    dayOfWeekElement.textContent = refDayOfWeek.textContent;
                 }
                 
-                if (lastStartTime.value) {
-                    startTimeInput.value = lastStartTime.value;
+                if (refStartTime.value) {
+                    startTimeInput.value = refStartTime.value;
                 }
                 
-                if (lastEndTime.value) {
-                    endTimeInput.value = lastEndTime.value;
+                if (refEndTime.value) {
+                    endTimeInput.value = refEndTime.value;
                 }
             }
             
@@ -281,6 +419,16 @@
             removeBtn.addEventListener('click', function() {
                 dateEntries.removeChild(entryDiv);
                 updateFormattedResults();
+                
+                // Check if we need to show the empty state
+                if (dateEntries.children.length === 0) {
+                    document.getElementById('emptyState').style.display = 'block';
+                }
+            });
+            
+            // Add event listener for the new inline add button
+            addInlineBtn.addEventListener('click', function() {
+                addDateEntry(entryDiv);
             });
             
             // Update formatted results since we've added new entry with values
@@ -902,6 +1050,11 @@
         function copyToClipboard() {
             const formattedResults = document.getElementById('formattedResults');
             const text = formattedResults.textContent;
+            const copyBtn = document.getElementById('copyBtn');
+            
+            // Save original button style
+            const originalBgColor = copyBtn.style.backgroundColor || '#2ecc71';
+            const originalText = copyBtn.textContent;
             
             if (text) {
                 // Use document.execCommand approach for better compatibility
@@ -921,13 +1074,29 @@
                 document.body.removeChild(textArea);
                 
                 if (successful) {
-                    alert('クリップボードにコピーしました！');
+                    // Change button text and color
+                    copyBtn.textContent = 'コピーしました！';
+                    copyBtn.style.backgroundColor = '#27ae60';
+                    
+                    // Reset button after 2 seconds
+                    setTimeout(function() {
+                        copyBtn.textContent = originalText;
+                        copyBtn.style.backgroundColor = originalBgColor;
+                    }, 2000);
                 } else {
                     // Try the Clipboard API as fallback
                     try {
                         navigator.clipboard.writeText(text)
                             .then(() => {
-                                alert('クリップボードにコピーしました！');
+                                // Change button text and color
+                                copyBtn.textContent = 'コピーしました！';
+                                copyBtn.style.backgroundColor = '#27ae60';
+                                
+                                // Reset button after 2 seconds
+                                setTimeout(function() {
+                                    copyBtn.textContent = originalText;
+                                    copyBtn.style.backgroundColor = originalBgColor;
+                                }, 2000);
                             })
                             .catch(err => {
                                 console.error('クリップボードのコピーに失敗しました:', err);
