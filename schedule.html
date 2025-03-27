@@ -7,11 +7,11 @@
     <style>
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.6;
+            line-height: 1.5;
             color: #333;
             max-width: 800px;
             margin: 0 auto;
-            padding: 20px;
+            padding: 15px;
             box-sizing: border-box;
         }
         
@@ -22,7 +22,7 @@
         .container {
             background-color: #f9f9f9;
             border-radius: 8px;
-            padding: 20px;
+            padding: 15px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             min-width: 320px;
         }
@@ -30,22 +30,23 @@
         h1 {
             text-align: center;
             color: #2c3e50;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
+            font-size: 20px;
         }
         
         .instructions {
             text-align: center;
             color: #7f8c8d;
-            font-size: 14px;
-            margin-bottom: 30px;
+            font-size: 13px;
+            margin-bottom: 15px;
         }
 
         .date-entry {
             display: flex;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
             align-items: center;
             background-color: white;
-            padding: 12px;
+            padding: 10px;
             border-radius: 6px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
             position: relative;
@@ -92,10 +93,10 @@
         }
 
         input {
-            padding: 8px;
+            padding: 6px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         input:focus {
@@ -145,13 +146,12 @@
         }
 
         .insertion-indicator {
-            height: 3px;
-            background-color: #3498db;
-            margin: -10px 0 15px;
-            border-radius: 3px;
-            opacity: 0;
-            transition: opacity 0.2s ease;
-            pointer-events: none;
+            display: none; /* 非表示にする */
+        }
+        
+        .highlight-new-entry {
+            background-color: #ebf5fb; /* 薄い青色の背景 */
+            transition: background-color 1.5s ease;
         }
 
         #addDateBtn {
@@ -163,32 +163,32 @@
             font-size: 14px;
             cursor: pointer;
             display: block;
-            margin: 20px auto;
+            margin: 15px auto;
         }
 
         .results-container {
-            margin-top: 30px;
+            margin-top: 20px;
             background-color: white;
             border-radius: 6px;
-            padding: 20px;
+            padding: 15px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
         h2 {
             color: #2c3e50;
-            font-size: 18px;
-            margin-bottom: 15px;
+            font-size: 16px;
+            margin-bottom: 10px;
         }
 
         #formattedResults {
             background-color: #f5f5f5;
             border: 1px solid #ddd;
             border-radius: 4px;
-            padding: 15px;
-            min-height: 100px;
+            padding: 12px;
+            min-height: 80px;
             white-space: pre-wrap;
             font-family: monospace;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         #copyBtn {
@@ -245,9 +245,9 @@
             <!-- Date entries will be added here -->
         </div>
         
-        <div id="emptyState" style="text-align: center; margin: 20px 0; display: none;">
-            <button id="addFirstDateBtn" class="add-inline-btn" style="width: 36px; height: 36px; font-size: 20px; margin: 0 auto;">+</button>
-            <p style="color: #7f8c8d; margin-top: 10px; font-size: 14px;">日程を追加</p>
+        <div id="emptyState" style="text-align: center; margin: 15px 0; display: none;">
+            <button id="addFirstDateBtn" class="add-inline-btn" style="width: 32px; height: 32px; font-size: 18px; margin: 0 auto;">+</button>
+            <p style="color: #7f8c8d; margin-top: 8px; font-size: 13px;">日程を追加</p>
         </div>
         
         <div class="results-container">
@@ -302,30 +302,10 @@
         function addDateEntry(afterElement = null) {
             const dateEntries = document.getElementById('dateEntries');
             
-            // Create insertion indicator if adding after a specific element
-            let insertionIndicator = null;
-            if (afterElement) {
-                insertionIndicator = document.createElement('div');
-                insertionIndicator.className = 'insertion-indicator';
-                dateEntries.insertBefore(insertionIndicator, afterElement.nextSibling);
-                
-                // Animate insertion indicator
-                setTimeout(() => {
-                    insertionIndicator.style.opacity = '1';
-                }, 10);
-                
-                setTimeout(() => {
-                    insertionIndicator.style.opacity = '0';
-                    setTimeout(() => {
-                        if (insertionIndicator.parentNode) {
-                            insertionIndicator.parentNode.removeChild(insertionIndicator);
-                        }
-                    }, 200);
-                }, 1000);
-            }
+            // 青い線のインジケーターは使用しない
             
             const entryDiv = document.createElement('div');
-            entryDiv.className = 'date-entry';
+            entryDiv.className = 'date-entry highlight-new-entry';
             
             entryDiv.innerHTML = `
                 <div class="date-input">
@@ -346,12 +326,15 @@
             // Insert the new entry at the specified position or at the end
             if (afterElement) {
                 dateEntries.insertBefore(entryDiv, afterElement.nextSibling);
-                if (insertionIndicator) {
-                    dateEntries.insertBefore(insertionIndicator, entryDiv.nextSibling);
-                }
             } else {
                 dateEntries.appendChild(entryDiv);
             }
+            
+            // ハイライト効果を1.5秒後に消す
+            setTimeout(() => {
+                entryDiv.classList.remove('highlight-new-entry');
+            }, 1500);
+            
             
             // Add event listeners to the new inputs
             const dateInput = entryDiv.querySelector('.date');
