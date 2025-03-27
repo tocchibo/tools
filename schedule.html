@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日程候補作成ツール</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        
+        * {
+            box-sizing: border-box;
+        }
+
+        .container {
+            background-color: #f9f9f9;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            min-width: 320px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
+        }
+
+        .date-entry {
+            display: flex;
+            margin-bottom: 15px;
+            align-items: center;
+            background-color: white;
+            padding: 12px;
+            border-radius: 6px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        .date-input {
+            width: 180px;
+            margin-right: 20px;
+            position: relative;
+        }
+
+        .date-input input {
+            width: 100%;
+            padding-right: 40px; /* Space for day of week */
+        }
+
+        .day-of-week {
+            width: 30px;
+            text-align: center;
+            font-weight: bold;
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 1;
+            pointer-events: none; /* Allows clicks to pass through */
+        }
+
+        .time-inputs {
+            display: flex;
+            align-items: center;
+            margin-right: 15px;
+            flex-shrink: 0;
+        }
+
+        .time-inputs input {
+            width: 80px;
+            text-align: center;
+        }
+
+        .time-inputs span {
+            margin: 0 10px;
+            flex-shrink: 0;
+        }
+
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        /* Add styles for wheel scrollable inputs */
+        .date-input input,
+        .time-inputs input {
+            cursor: ns-resize;
+        }
+
+        .remove-btn {
+            background-color: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 10px;
+        }
+
+        #addDateBtn {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            display: block;
+            margin: 20px auto;
+        }
+
+        .results-container {
+            margin-top: 30px;
+            background-color: white;
+            border-radius: 6px;
+            padding: 20px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+
+        h2 {
+            color: #2c3e50;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+
+        #formattedResults {
+            background-color: #f5f5f5;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            min-height: 100px;
+            white-space: pre-wrap;
+            font-family: monospace;
+            margin-bottom: 20px;
+        }
+
+        #copyBtn {
+            background-color: #2ecc71;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            display: block;
+            margin: 0 auto;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>日程候補作成ツール</h1>
+        
+        <div id="dateEntries">
+            <!-- Date entries will be added here -->
+        </div>
+        
+        <button id="addDateBtn">+ 日程を追加</button>
+        
+        <div class="results-container">
+            <h2>フォーマット済み日程</h2>
+            <div id="formattedResults"></div>
+            <button id="copyBtn">クリップボードにコピー</button>
+        </div>
+    </div>
+
+    <script>
+        // Initialize when document is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add event listener to the add date button
+            document.getElementById('addDateBtn').addEventListener('click', addDateEntry);
+            
+            // Add first date entry
+            addDateEntry();
+            
+            // Add event listener to copy button
+            document.getElementById('copyBtn').addEventListener('click', copyToClipboard);
+        });
+
+        // Function to add a new date entry
+        function addDateEntry() {
+            const dateEntries = document.getElementById('dateEntries');
+            const entryDiv = document.createElement('div');
+            entryDiv.className = 'date-entry';
+            
+            entryDiv.innerHTML = `
+                <div class="date-input">
+                    <input type="text" class="date" placeholder="日付">
+                    <div class="day-of-week"></div>
+                </div>
+                <div class="time-inputs">
+                    <input type="text" class="start-time" placeholder="開始時間">
+                    <span>～</span>
+                    <input type="text" class="end-time" placeholder="終了時間">
+                </div>
+                <button class="remove-btn">×</button>
+            `;
+            
+            dateEntries.appendChild(entryDiv);
+            
+            // Add event listeners to the new inputs
+            const dateInput = entryDiv.querySelector('.date');
+            const startTimeInput = entryDiv.querySelector('.start-time');
+            const endTimeInput = entryDiv.querySelector('.end-time');
+            const removeBtn = entryDiv.querySelector('.remove-btn');
+            
+            dateInput.addEventListener('blur', handleDateInput);
+            dateInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    handleDateInput.call(this);
+                }
+            });
+            dateInput.addEventListener('wheel', handleDateWheel);
+            
+            startTimeInput.addEventListener('blur', handleStartTimeInput);
+            startTimeInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    handleStartTimeInput.call(this);
+                }
+            });
+            startTimeInput.addEventListener('wheel', handleStartTimeWheel);
+            
+            endTimeInput.addEventListener('blur', handleEndTimeInput);
+            endTimeInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    handleEndTimeInput.call(this);
+                }
+            });
+            endTimeInput.addEventListener('wheel', handleEndTimeWheel);
+            
+            removeBtn.addEventListener('click', function() {
+                dateEntries.removeChild(entryDiv);
+                updateFormattedResults();
+            });
+        }
+
+        // Handle date input - parse and format date
+        function handleDateInput() {
+            const dateInput = this;
+            const dateValue = dateInput.value.trim();
+            
+            if (!dateValue) return;
+            
+            const parsedDate = parseFlexibleDate(dateValue);
+            
+            if (parsedDate) {
+                // Format date as YYYY/MM/DD
+                const year = parsedDate.getFullYear();
+                const month = (parsedDate.getMonth() + 1).toString().padStart(2, '0');
+                const day = parsedDate.getDate().toString().padStart(2, '0');
+                dateInput.value = `${year}/${month}/${day}`;
+                
+                // Update day of week
+                const dayOfWeekElement = dateInput.closest('.date-entry').querySelector('.day-of-week');
+                const dayOfWeek = getDayOfWeekJapanese(parsedDate);
+                dayOfWeekElement.textContent = `(${dayOfWeek})`;
+            }
+            
+            updateFormattedResults();
+        }
+
+        // Parse date with flexible formats
+        function parseFlexibleDate(dateStr) {
+            // Convert full-width characters to half-width
+            dateStr = convertFullWidthToHalfWidth(dateStr);
+            
+            // Current date for reference
+            const now = new Date();
+            const currentYear = now.getFullYear();
+            let year = currentYear;
+            let month, day;
+            
+            // Try different formats
+            
+            // Format: YYYYMMDD (e.g., 20250408)
+            if (/^\d{8}$/.test(dateStr)) {
+                year = parseInt(dateStr.substring(0, 4));
+                month = parseInt(dateStr.substring(4, 6));
+                day = parseInt(dateStr.substring(6, 8));
+            }
+            // Format: YYYYMM (e.g., 202504)
+            else if (/^\d{6}$/.test(dateStr)) {
+                year = parseInt(dateStr.substring(0, 4));
+                month = parseInt(dateStr.substring(4, 6));
+                day = 1;
+            }
+            // Format: MMDD (e.g., 0408)
+            else if (/^\d{4}$/.test(dateStr)) {
+                month = parseInt(dateStr.substring(0, 2));
+                day = parseInt(dateStr.substring(2, 4));
+            }
+            // Format: MM/DD or M/D (e.g., 04/08 or 4/8)
+            else if (/^\d{1,2}\/\d{1,2}$/.test(dateStr)) {
+                const parts = dateStr.split('/');
+                month = parseInt(parts[0]);
+                day = parseInt(parts[1]);
+            }
+            // Format: M or MM (e.g., 4 or 04 for April 1st)
+            else if (/^\d{1,2}$/.test(dateStr)) {
+                month = parseInt(dateStr);
+                day = 1;
+            }
+            // Format: YYYY/MM/DD or YYYY/M/D
+            else if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(dateStr)) {
+                const parts = dateStr.split('/');
+                year = parseInt(parts[0]);
+                month = parseInt(parts[1]);
+                day = parseInt(parts[2]);
+            }
+            // Format: MM-DD or M-D
+            else if (/^\d{1,2}-\d{1,2}$/.test(dateStr)) {
+                const parts = dateStr.split('-');
+                month = parseInt(parts[0]);
+                day = parseInt(parts[1]);
+            }
+            // Format: YYYYM (e.g., 20254 for 2025 April)
+            else if (/^\d{5}$/.test(dateStr)) {
+                year = parseInt(dateStr.substring(0, 4));
+                month = parseInt(dateStr.substring(4, 5));
+                day = 1;
+            }
+            else {
+                return null; // Couldn't parse the date
+            }
+            
+            // Validate month and day
+            if (month < 1 || month > 12 || day < 1 || day > 31) {
+                return null;
+            }
+            
+            // Create the date object
+            const inputDate = new Date(year, month - 1, day);
+            
+            // For formats that don't explicitly include the year
+            const yearNotExplicit = !/^\d{4}/.test(dateStr) && 
+                                (!dateStr.includes('/') || 
+                                (dateStr.includes('/') && dateStr.split('/').length === 2));
+            
+            if (yearNotExplicit) {
+                const today = new Date();
+                const thisYear = today.getFullYear();
+                const nextYear = thisYear + 1;
+                
+                // Create a date object with current year for comparison
+                const dateWithCurrentYear = new Date(thisYear, month - 1, day);
+                const dec31ThisYear = new Date(thisYear, 11, 31);
+                
+                if (dateWithCurrentYear >= today && dateWithCurrentYear <= dec31ThisYear) {
+                    // Date is between today and Dec 31 of current year
+                    inputDate.setFullYear(thisYear);
+                } else {
+                    // Date is before today or after Dec 31 of current year
+                    inputDate.setFullYear(nextYear);
+                }
+            }
+            
+            return inputDate;
+        }
+
+        // Convert full-width characters to half-width
+        function convertFullWidthToHalfWidth(str) {
+            return str.replace(/[！-～]/g, function(s) {
+                return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+            }).replace(/　/g, ' ');
+        }
+
+        // Get Japanese day of week
+        function getDayOfWeekJapanese(date) {
+            const daysJp = ['日', '月', '火', '水', '木', '金', '土'];
+            return daysJp[date.getDay()];
+        }
+
+        // Handle start time input
+        function handleStartTimeInput() {
+            const startTimeInput = this;
+            const startTimeValue = startTimeInput.value.trim();
+            
+            if (!startTimeValue) return;
+            
+            const parsedTime = parseFlexibleTime(startTimeValue);
+            
+            if (parsedTime) {
+                // Format time as HH:MM
+                const hours = parsedTime.getHours().toString().padStart(2, '0');
+                const minutes = parsedTime.getMinutes().toString().padStart(2, '0');
+                startTimeInput.value = `${hours}:${minutes}`;
+                
+                // If end time is empty, set it to 1 hour later
+                const endTimeInput = startTimeInput.closest('.date-entry').querySelector('.end-time');
+                if (!endTimeInput.value.trim()) {
+                    const endTime = new Date(parsedTime);
+                    endTime.setHours(endTime.getHours() + 1);
+                    const endHours = endTime.getHours().toString().padStart(2, '0');
+                    const endMinutes = endTime.getMinutes().toString().padStart(2, '0');
+                    endTimeInput.value = `${endHours}:${endMinutes}`;
+                }
+            }
+            
+            updateFormattedResults();
+        }
+
+        // Handle end time input
+        function handleEndTimeInput() {
+            const endTimeInput = this;
+            const endTimeValue = endTimeInput.value.trim();
+            
+            if (!endTimeValue) return;
+            
+            const parsedTime = parseFlexibleTime(endTimeValue);
+            
+            if (parsedTime) {
+                // Format time as HH:MM
+                const hours = parsedTime.getHours().toString().padStart(2, '0');
+                const minutes = parsedTime.getMinutes().toString().padStart(2, '0');
+                endTimeInput.value = `${hours}:${minutes}`;
+            }
+            
+            updateFormattedResults();
+        }
+
+        // Parse time with flexible formats
+        function parseFlexibleTime(timeStr) {
+            // Convert full-width characters to half-width
+            timeStr = convertFullWidthToHalfWidth(timeStr);
+            
+            let hours, minutes = 0;
+            
+            // Try different formats
+            
+            // Format: HH:MM or HH.MM (e.g., 14:30 or 14.30)
+            if (/^\d{1,2}[:\.]\d{1,2}$/.test(timeStr)) {
+                const parts = timeStr.split(/[:\.]/);
+                hours = parseInt(parts[0]);
+                minutes = parseInt(parts[1]);
+            }
+            // Format: HHMM (e.g., 1430)
+            else if (/^\d{3,4}$/.test(timeStr)) {
+                if (timeStr.length === 3) {
+                    // e.g., 930 -> 9:30
+                    hours = parseInt(timeStr.substring(0, 1));
+                    minutes = parseInt(timeStr.substring(1, 3));
+                } else {
+                    // e.g., 1430 -> 14:30
+                    hours = parseInt(timeStr.substring(0, 2));
+                    minutes = parseInt(timeStr.substring(2, 4));
+                }
+            }
+            // Format: H or HH (e.g., 9 or 14)
+            else if (/^\d{1,2}$/.test(timeStr)) {
+                hours = parseInt(timeStr);
+                minutes = 0;
+            }
+            else {
+                return null; // Couldn't parse the time
+            }
+            
+            // Validate hours and minutes
+            if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+                return null;
+            }
+            
+            const now = new Date();
+            now.setHours(hours, minutes, 0, 0);
+            return now;
+        }
+
+        // Handling date wheel event
+        function handleDateWheel(event) {
+            event.preventDefault();
+            
+            const dateInput = this;
+            let dateValue = dateInput.value.trim();
+            
+            // If no date is entered, use today's date or the date from the previous entry
+            if (!dateValue) {
+                // Get today's date
+                const today = new Date();
+                
+                // Check for previous entry's date
+                const dateEntries = document.querySelectorAll('.date-entry');
+                let entryIndex = -1;
+                let currentEntry = dateInput.closest('.date-entry');
+                
+                for (let i = 0; i < dateEntries.length; i++) {
+                    if (dateEntries[i] === currentEntry) {
+                        entryIndex = i;
+                        break;
+                    }
+                }
+                
+                let previousDate = null;
+                if (entryIndex > 0) {
+                    const previousDateInput = dateEntries[entryIndex - 1].querySelector('.date');
+                    if (previousDateInput && previousDateInput.value) {
+                        previousDate = parseFlexibleDate(previousDateInput.value);
+                    }
+                }
+                
+                // Use the later of today or the previous entry's date
+                let dateToUse = today;
+                if (previousDate && previousDate > today) {
+                    dateToUse = previousDate;
+                }
+                
+                // Format as YYYY/MM/DD
+                const year = dateToUse.getFullYear();
+                const month = (dateToUse.getMonth() + 1).toString().padStart(2, '0');
+                const day = dateToUse.getDate().toString().padStart(2, '0');
+                dateInput.value = `${year}/${month}/${day}`;
+                
+                // Update day of week
+                const dayOfWeekElement = dateInput.closest('.date-entry').querySelector('.day-of-week');
+                const dayOfWeek = getDayOfWeekJapanese(dateToUse);
+                dayOfWeekElement.textContent = `(${dayOfWeek})`;
+                
+                // Update formatted results
+                updateFormattedResults();
+                
+                // Return early without adjusting the date
+                return;
+            }
+            
+            // Parse the current date
+            const currentDate = parseFlexibleDate(dateValue);
+            if (!currentDate) return;
+            
+            // Adjust the date based on wheel direction
+            if (event.deltaY < 0) {
+                // Scroll up - decrement date by 1 day
+                currentDate.setDate(currentDate.getDate() - 1);
+            } else {
+                // Scroll down - increment date by 1 day
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            // Format the new date as YYYY/MM/DD
+            const year = currentDate.getFullYear();
+            const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
+            const day = currentDate.getDate().toString().padStart(2, '0');
+            dateInput.value = `${year}/${month}/${day}`;
+            
+            // Update day of week
+            const dayOfWeekElement = dateInput.closest('.date-entry').querySelector('.day-of-week');
+            const dayOfWeek = getDayOfWeekJapanese(currentDate);
+            dayOfWeekElement.textContent = `(${dayOfWeek})`;
+            
+            // Update formatted results
+            updateFormattedResults();
+        }
+        
+        // Handling start time wheel event
+        function handleStartTimeWheel(event) {
+            event.preventDefault();
+            
+            const startTimeInput = this;
+            let startTimeValue = startTimeInput.value.trim();
+            const endTimeInput = startTimeInput.closest('.date-entry').querySelector('.end-time');
+            let endTimeValue = endTimeInput.value.trim();
+            
+            // If no start time is entered, use 8:00 or the previous entry's start time
+            if (!startTimeValue) {
+                // Default start time is 8:00
+                let defaultTime = new Date();
+                defaultTime.setHours(8, 0, 0, 0);
+                
+                // Check for previous entry's start time
+                const dateEntries = document.querySelectorAll('.date-entry');
+                let entryIndex = -1;
+                let currentEntry = startTimeInput.closest('.date-entry');
+                
+                for (let i = 0; i < dateEntries.length; i++) {
+                    if (dateEntries[i] === currentEntry) {
+                        entryIndex = i;
+                        break;
+                    }
+                }
+                
+                let previousStartTime = null;
+                if (entryIndex > 0) {
+                    const previousStartTimeInput = dateEntries[entryIndex - 1].querySelector('.start-time');
+                    if (previousStartTimeInput && previousStartTimeInput.value) {
+                        previousStartTime = parseFlexibleTime(previousStartTimeInput.value);
+                    }
+                }
+                
+                // Use the later of 8:00 or the previous entry's start time
+                let timeToUse = defaultTime;
+                if (previousStartTime && previousStartTime > defaultTime) {
+                    timeToUse = previousStartTime;
+                }
+                
+                // Format as HH:MM
+                const hours = timeToUse.getHours().toString().padStart(2, '0');
+                const minutes = timeToUse.getMinutes().toString().padStart(2, '0');
+                startTimeInput.value = `${hours}:${minutes}`;
+                
+                // Set end time to be 1 hour later if not already set
+                if (!endTimeValue) {
+                    const endTime = new Date(timeToUse);
+                    endTime.setHours(endTime.getHours() + 1);
+                    const endHours = endTime.getHours().toString().padStart(2, '0');
+                    const endMinutes = endTime.getMinutes().toString().padStart(2, '0');
+                    endTimeInput.value = `${endHours}:${endMinutes}`;
+                }
+                
+                // Update formatted results
+                updateFormattedResults();
+                
+                // Return early without adjusting the time
+                return;
+            }
+            
+            // Parse the current times
+            const currentStartTime = parseFlexibleTime(startTimeValue);
+            if (!currentStartTime) return;
+            
+            let currentEndTime = null;
+            if (endTimeValue) {
+                currentEndTime = parseFlexibleTime(endTimeValue);
+            }
+            
+            // Calculate time difference if end time exists
+            let timeDiff = 0;
+            if (currentEndTime) {
+                timeDiff = currentEndTime.getTime() - currentStartTime.getTime();
+            }
+            
+            // Adjust the start time based on wheel direction
+            if (event.deltaY < 0) {
+                // Scroll up - decrement time by 30 minutes
+                currentStartTime.setMinutes(currentStartTime.getMinutes() - 30);
+            } else {
+                // Scroll down - increment time by 30 minutes
+                currentStartTime.setMinutes(currentStartTime.getMinutes() + 30);
+            }
+            
+            // Format the new start time as HH:MM
+            const startHours = currentStartTime.getHours().toString().padStart(2, '0');
+            const startMinutes = currentStartTime.getMinutes().toString().padStart(2, '0');
+            startTimeInput.value = `${startHours}:${startMinutes}`;
+            
+            // Adjust end time to maintain the same time difference
+            if (currentEndTime) {
+                const newEndTime = new Date(currentStartTime.getTime() + timeDiff);
+                const endHours = newEndTime.getHours().toString().padStart(2, '0');
+                const endMinutes = newEndTime.getMinutes().toString().padStart(2, '0');
+                endTimeInput.value = `${endHours}:${endMinutes}`;
+            }
+            
+            // Update formatted results
+            updateFormattedResults();
+        }
+        
+        // Handling end time wheel event
+        function handleEndTimeWheel(event) {
+            event.preventDefault();
+            
+            const endTimeInput = this;
+            let endTimeValue = endTimeInput.value.trim();
+            const startTimeInput = endTimeInput.closest('.date-entry').querySelector('.start-time');
+            let startTimeValue = startTimeInput.value.trim();
+            
+            // If no start time is entered, set default start time
+            if (!startTimeValue) {
+                // Default start time is 8:00
+                let defaultTime = new Date();
+                defaultTime.setHours(8, 0, 0, 0);
+                
+                // Check for previous entry's start time
+                const dateEntries = document.querySelectorAll('.date-entry');
+                let entryIndex = -1;
+                let currentEntry = endTimeInput.closest('.date-entry');
+                
+                for (let i = 0; i < dateEntries.length; i++) {
+                    if (dateEntries[i] === currentEntry) {
+                        entryIndex = i;
+                        break;
+                    }
+                }
+                
+                let previousStartTime = null;
+                if (entryIndex > 0) {
+                    const previousStartTimeInput = dateEntries[entryIndex - 1].querySelector('.start-time');
+                    if (previousStartTimeInput && previousStartTimeInput.value) {
+                        previousStartTime = parseFlexibleTime(previousStartTimeInput.value);
+                    }
+                }
+                
+                // Use the later of 8:00 or the previous entry's start time
+                let timeToUse = defaultTime;
+                if (previousStartTime && previousStartTime > defaultTime) {
+                    timeToUse = previousStartTime;
+                }
+                
+                // Format as HH:MM
+                const hours = timeToUse.getHours().toString().padStart(2, '0');
+                const minutes = timeToUse.getMinutes().toString().padStart(2, '0');
+                startTimeInput.value = `${hours}:${minutes}`;
+                startTimeValue = startTimeInput.value;
+                
+                // If end time is also not set, set it to 1 hour later
+                if (!endTimeValue) {
+                    const endTime = new Date(timeToUse);
+                    endTime.setHours(endTime.getHours() + 1);
+                    const endHours = endTime.getHours().toString().padStart(2, '0');
+                    const endMinutes = endTime.getMinutes().toString().padStart(2, '0');
+                    endTimeInput.value = `${endHours}:${endMinutes}`;
+                    
+                    // Update formatted results
+                    updateFormattedResults();
+                    
+                    // Return early without adjusting the time
+                    return;
+                }
+            }
+            
+            // If no end time is entered but start time exists, set end time to start time + 1 hour
+            if (!endTimeValue && startTimeValue) {
+                const startTime = parseFlexibleTime(startTimeValue);
+                if (startTime) {
+                    const endTime = new Date(startTime);
+                    endTime.setHours(endTime.getHours() + 1);
+                    const endHours = endTime.getHours().toString().padStart(2, '0');
+                    const endMinutes = endTime.getMinutes().toString().padStart(2, '0');
+                    endTimeInput.value = `${endHours}:${endMinutes}`;
+                    
+                    // Update formatted results
+                    updateFormattedResults();
+                    
+                    // Return early without adjusting the time
+                    return;
+                }
+            }
+            
+            // Parse the current times
+            const currentStartTime = parseFlexibleTime(startTimeValue);
+            if (!currentStartTime) return;
+            
+            let currentEndTime = parseFlexibleTime(endTimeValue);
+            if (!currentEndTime) {
+                // If end time couldn't be parsed, set it to 1 hour after start time
+                currentEndTime = new Date(currentStartTime);
+                currentEndTime.setHours(currentEndTime.getHours() + 1);
+                
+                // Format the end time
+                const endHours = currentEndTime.getHours().toString().padStart(2, '0');
+                const endMinutes = currentEndTime.getMinutes().toString().padStart(2, '0');
+                endTimeInput.value = `${endHours}:${endMinutes}`;
+                
+                // Update formatted results
+                updateFormattedResults();
+                
+                // Return early without adjusting the time
+                return;
+            }
+            
+            // Adjust the end time based on wheel direction
+            if (event.deltaY < 0) {
+                // Scroll up - decrement time by 30 minutes
+                currentEndTime.setMinutes(currentEndTime.getMinutes() - 30);
+                
+                // Ensure end time is not earlier than start time
+                if (currentEndTime < currentStartTime) {
+                    currentEndTime = new Date(currentStartTime);
+                }
+            } else {
+                // Scroll down - increment time by 30 minutes
+                currentEndTime.setMinutes(currentEndTime.getMinutes() + 30);
+            }
+            
+            // Format the new end time as HH:MM
+            const endHours = currentEndTime.getHours().toString().padStart(2, '0');
+            const endMinutes = currentEndTime.getMinutes().toString().padStart(2, '0');
+            endTimeInput.value = `${endHours}:${endMinutes}`;
+            
+            // Update formatted results
+            updateFormattedResults();
+        }
+
+        // Update formatted results
+        function updateFormattedResults() {
+            const dateEntries = document.querySelectorAll('.date-entry');
+            const formattedResults = document.getElementById('formattedResults');
+            let formattedText = '';
+            
+            dateEntries.forEach(entry => {
+                const dateInput = entry.querySelector('.date');
+                const dayOfWeek = entry.querySelector('.day-of-week');
+                const startTimeInput = entry.querySelector('.start-time');
+                const endTimeInput = entry.querySelector('.end-time');
+                
+                if (dateInput.value && startTimeInput.value) {
+                    // Parse the date for formatting as M/d
+                    let dateText = '';
+                    try {
+                        const dateParts = dateInput.value.split('/');
+                        if (dateParts.length === 3) {
+                            const month = parseInt(dateParts[1]);
+                            const day = parseInt(dateParts[2]);
+                            dateText = `${month}/${day}`;
+                        } else {
+                            dateText = dateInput.value;
+                        }
+                    } catch (e) {
+                        dateText = dateInput.value;
+                    }
+                    
+                    const dayOfWeekText = dayOfWeek.textContent;
+                    
+                    // Format start time as H:mm (remove leading zero from hour)
+                    let startTime = '';
+                    if (startTimeInput.value) {
+                        const startTimeParts = startTimeInput.value.split(':');
+                        if (startTimeParts.length === 2) {
+                            const hour = parseInt(startTimeParts[0]);
+                            const minute = startTimeParts[1];
+                            startTime = `${hour}:${minute}`;
+                        } else {
+                            startTime = startTimeInput.value;
+                        }
+                    }
+                    
+                    // Format end time as H:mm (remove leading zero from hour)
+                    let endTime = '';
+                    if (endTimeInput.value) {
+                        const endTimeParts = endTimeInput.value.split(':');
+                        if (endTimeParts.length === 2) {
+                            const hour = parseInt(endTimeParts[0]);
+                            const minute = endTimeParts[1];
+                            endTime = `${hour}:${minute}`;
+                        } else {
+                            endTime = endTimeInput.value;
+                        }
+                    }
+                    
+                    let line = `${dateText}${dayOfWeekText} ${startTime}`;
+                    if (endTime) {
+                        line += `～${endTime}`;
+                    }
+                    
+                    formattedText += line + '\n';
+                }
+            });
+            
+            formattedResults.textContent = formattedText.trim();
+        }
+
+        // Copy formatted results to clipboard
+        function copyToClipboard() {
+            const formattedResults = document.getElementById('formattedResults');
+            const text = formattedResults.textContent;
+            
+            if (text) {
+                // Use document.execCommand approach for better compatibility
+                const textArea = document.createElement('textarea');
+                textArea.value = text;
+                textArea.style.position = 'fixed';  // Avoid scrolling to bottom
+                document.body.appendChild(textArea);
+                textArea.select();
+                
+                let successful = false;
+                try {
+                    successful = document.execCommand('copy');
+                } catch (err) {
+                    console.error('Unable to copy', err);
+                }
+                
+                document.body.removeChild(textArea);
+                
+                if (successful) {
+                    alert('クリップボードにコピーしました！');
+                } else {
+                    // Try the Clipboard API as fallback
+                    try {
+                        navigator.clipboard.writeText(text)
+                            .then(() => {
+                                alert('クリップボードにコピーしました！');
+                            })
+                            .catch(err => {
+                                console.error('クリップボードのコピーに失敗しました:', err);
+                                alert('クリップボードへのコピーに失敗しました。テキストを手動でコピーしてください。');
+                            });
+                    } catch (err) {
+                        console.error('クリップボードのコピーに失敗しました:', err);
+                        alert('クリップボードへのコピーに失敗しました。テキストを手動でコピーしてください。');
+                    }
+                }
+            }
+        }
+    </script>
+</body>
+</html>
