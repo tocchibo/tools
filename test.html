@@ -161,6 +161,16 @@
             background-color: #ebf5fb; /* 薄い青色の背景 */
             transition: background-color 0.8s ease-out;
         }
+        
+        /* アニメーション用スタイル */
+        @keyframes highlightFade {
+            0% { background-color: #ebf5fb; }
+            100% { background-color: white; }
+        }
+        
+        .highlight-animation {
+            animation: highlightFade 0.8s ease-out forwards;
+        }
 
         #addDateBtn {
             background-color: #3498db;
@@ -265,7 +275,7 @@
             z-index: 1000;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
             display: none;
-            width: 80px;
+            min-width: 80px;
         }
         
         .time-dropdown-item {
@@ -273,7 +283,8 @@
             cursor: pointer;
             transition: background-color 0.2s;
             font-size: 13px;
-            text-align: center;
+            text-align: left;
+            white-space: nowrap;
         }
         
         .time-dropdown-item:hover {
@@ -290,7 +301,7 @@
 <body>
     <div class="container">
         <h1>日程候補作成ツール</h1>
-        <div class="instructions">日付・時刻入力欄をクリックして選択、またはマウスホイールで調整できます</div>
+        <div class="instructions">日付・時刻入力欄をクリックして選択、またはマウスホイールで調整できます（Ctrlキー+ホイールで分単位調整）</div>
         
         <div id="dateEntries">
             <!-- Date entries will be added here -->
@@ -401,12 +412,19 @@
                 dateEntries.appendChild(entryDiv);
             }
             
-            // ハイライト効果を0.8秒後に消す
-            setTimeout(() => {
-                if (entryDiv.classList.contains('highlight-new-entry')) {
+            // アニメーションを適用するためのタイミング調整
+            requestAnimationFrame(() => {
+                // 別のクラスに変更しアニメーションを適用
+                setTimeout(() => {
                     entryDiv.classList.remove('highlight-new-entry');
-                }
-            }, 800);
+                    entryDiv.classList.add('highlight-animation');
+                    
+                    // アニメーション完了後にクラスを削除
+                    setTimeout(() => {
+                        entryDiv.classList.remove('highlight-animation');
+                    }, 800);
+                }, 10);
+            });
             
             
             // Add event listeners to the new inputs
@@ -554,7 +572,27 @@
             }
         }
         
-                    // 時刻選択ドロップダウンを表示する関数
+                    // 時間差を「○時間」または「○時間○分」の形式でフォーマットする関数
+        function formatTimeDifference(startTime, endTime) {
+            if (!startTime || !endTime) return '';
+            
+            // 時間差を分単位で計算
+            const diffMs = endTime.getTime() - startTime.getTime();
+            const diffMinutes = Math.round(diffMs / (1000 * 60));
+            
+            if (diffMinutes <= 0) return '';
+            
+            const hours = Math.floor(diffMinutes / 60);
+            const minutes = diffMinutes % 60;
+            
+            if (minutes === 0) {
+                return `(${hours}時間)`;
+            } else {
+                return `(${hours}時間${minutes}分)`;
+            }
+        }
+        
+        // 時刻選択ドロップダウンを表示する関数
         function showTimeDropdown(inputElement, isStartTime) {
             // 既存のドロップダウンを閉じる
             closeTimeDropdown();
@@ -576,7 +614,7 @@
             const rect = inputElement.getBoundingClientRect();
             dropdown.style.top = (rect.bottom + window.scrollY) + 'px';
             dropdown.style.left = (rect.left + window.scrollX) + 'px';
-            dropdown.style.width = rect.width + 'px';
+            dropdown.style.width = isStartTime ? rect.width + 'px' : '150px'; // 終了時刻の場合は幅を広げる
             
             // ドロップダウンの中身をクリア
             dropdown.innerHTML = '';
@@ -595,11 +633,11 @@
             }
             
             // 最小時刻の設定（終了時刻の場合は開始時刻以降）
-            let minTime = null;
+            let startTime = null;
             if (!isStartTime) {
                 const startTimeInput = inputElement.closest('.date-entry').querySelector('.start-time');
                 if (startTimeInput && startTimeInput.value) {
-                    minTime = parseFlexibleTime(startTimeInput.value);
+                    startTime = parseFlexibleTime(startTimeInput.value);
                 }
             }
             
@@ -613,11 +651,13 @@
             // 時刻選択肢を生成
             for (let hour = 0; hour < 24; hour++) {
                 for (let minutePattern of [timePattern1, timePattern2].sort()) {
+                    // 現在の時刻を生成
+                    const currentTime = new Date();
+                    currentTime.setHours(hour, minutePattern, 0, 0);
+                    
                     // 開始時刻より前の時間は終了時刻の選択肢から除外
-                    if (minTime) {
-                        const currentTime = new Date();
-                        currentTime.setHours(hour, minutePattern, 0, 0);
-                        if (currentTime < minTime) {
+                    if (!isStartTime && startTime) {
+                        if (currentTime <= startTime) {
                             continue;
                         }
                     }
@@ -628,7 +668,14 @@
                     
                     const timeItem = document.createElement('div');
                     timeItem.className = 'time-dropdown-item';
-                    timeItem.textContent = timeString;
+                    
+                    // 終了時刻の場合、開始時刻からの経過時間も表示
+                    if (!isStartTime && startTime) {
+                        const timeDiff = formatTimeDifference(startTime, currentTime);
+                        timeItem.textContent = `${timeString} ${timeDiff}`;
+                    } else {
+                        timeItem.textContent = timeString;
+                    }
                     
                     // デフォルト選択の設定
                     if (hour === defaultHour && minutePattern === defaultMinute) {
@@ -638,7 +685,9 @@
                     
                     // クリックイベントを追加
                     timeItem.addEventListener('click', function() {
-                        inputElement.value = timeString;
+                        // 時刻部分のみを取得（経過時間部分を除く）
+                        const selectedTime = this.textContent.split(' ')[0];
+                        inputElement.value = selectedTime;
                         
                         // 連動処理
                         if (isStartTime) {
@@ -659,22 +708,24 @@
             
             // スクロール位置を選択項目に合わせる
             if (selectedTime) {
-                const selectedElement = Array.from(dropdown.querySelectorAll('.time-dropdown-item')).find(el => el.textContent === selectedTime);
+                const selectedElement = Array.from(dropdown.querySelectorAll('.time-dropdown-item')).find(el => el.textContent.startsWith(selectedTime));
                 if (selectedElement) {
                     setTimeout(() => {
                         selectedElement.scrollIntoView({ block: 'center' });
                     }, 0);
                 }
             } else {
-                // デフォルトで8:00または最小時間を表示位置に
+                // デフォルトで8:00または開始時刻+1時間を表示位置に
                 let defaultTimeString = "08:00";
-                if (minTime) {
-                    const h = minTime.getHours().toString().padStart(2, '0');
-                    const m = minTime.getMinutes().toString().padStart(2, '0');
+                if (!isStartTime && startTime) {
+                    const endTime = new Date(startTime);
+                    endTime.setHours(endTime.getHours() + 1);
+                    const h = endTime.getHours().toString().padStart(2, '0');
+                    const m = endTime.getMinutes().toString().padStart(2, '0');
                     defaultTimeString = `${h}:${m}`;
                 }
                 
-                const defaultElement = Array.from(dropdown.querySelectorAll('.time-dropdown-item')).find(el => el.textContent === defaultTimeString);
+                const defaultElement = Array.from(dropdown.querySelectorAll('.time-dropdown-item')).find(el => el.textContent.startsWith(defaultTimeString));
                 if (defaultElement) {
                     setTimeout(() => {
                         defaultElement.scrollIntoView({ block: 'center' });
@@ -1115,13 +1166,16 @@
                 timeDiff = currentEndTime.getTime() - currentStartTime.getTime();
             }
             
+            // Determine the time adjustment increment based on Ctrl key state
+            const timeIncrement = event.ctrlKey ? 1 : 30; // 1分単位または30分単位
+            
             // Adjust the start time based on wheel direction
             if (event.deltaY < 0) {
-                // Scroll up - decrement time by 30 minutes
-                currentStartTime.setMinutes(currentStartTime.getMinutes() - 30);
+                // Scroll up - decrement time by increment amount
+                currentStartTime.setMinutes(currentStartTime.getMinutes() - timeIncrement);
             } else {
-                // Scroll down - increment time by 30 minutes
-                currentStartTime.setMinutes(currentStartTime.getMinutes() + 30);
+                // Scroll down - increment time by increment amount
+                currentStartTime.setMinutes(currentStartTime.getMinutes() + timeIncrement);
             }
             
             // Format the new start time as HH:MM
@@ -1244,18 +1298,23 @@
                 return;
             }
             
+            // Determine the time adjustment increment based on Ctrl key state
+            const timeIncrement = event.ctrlKey ? 1 : 30; // 1分単位または30分単位
+            
             // Adjust the end time based on wheel direction
             if (event.deltaY < 0) {
-                // Scroll up - decrement time by 30 minutes
-                currentEndTime.setMinutes(currentEndTime.getMinutes() - 30);
+                // Scroll up - decrement time by increment amount
+                currentEndTime.setMinutes(currentEndTime.getMinutes() - timeIncrement);
                 
                 // Ensure end time is not earlier than start time
-                if (currentEndTime < currentStartTime) {
+                if (currentEndTime <= currentStartTime) {
+                    // Add minimum increment to start time
                     currentEndTime = new Date(currentStartTime);
+                    currentEndTime.setMinutes(currentEndTime.getMinutes() + (event.ctrlKey ? 1 : 30));
                 }
             } else {
-                // Scroll down - increment time by 30 minutes
-                currentEndTime.setMinutes(currentEndTime.getMinutes() + 30);
+                // Scroll down - increment time by increment amount
+                currentEndTime.setMinutes(currentEndTime.getMinutes() + timeIncrement);
             }
             
             // Format the new end time as HH:MM
@@ -1323,9 +1382,19 @@
                         }
                     }
                     
+                    // 開始時刻と終了時刻の時間差を計算（終了時刻がある場合）
+                    let timeDiffText = '';
+                    if (startTimeInput.value && endTimeInput.value) {
+                        const startTime = parseFlexibleTime(startTimeInput.value);
+                        const endTime = parseFlexibleTime(endTimeInput.value);
+                        if (startTime && endTime) {
+                            timeDiffText = formatTimeDifference(startTime, endTime);
+                        }
+                    }
+                    
                     let line = `${dateText}${dayOfWeekText} ${startTime}`;
                     if (endTime) {
-                        line += `～${endTime}`;
+                        line += `～${endTime} ${timeDiffText}`;
                     }
                     
                     formattedText += line + '\n';
