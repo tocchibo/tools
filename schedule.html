@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>日程候補作成ツール</title>
+    <!-- Flatpickrライブラリとスタイルシートを追加 -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/themes/material_blue.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/l10n/ja.min.js"></script>
     <style>
         body {
             font-family: 'Helvetica Neue', Arial, sans-serif;
@@ -61,6 +66,8 @@
         .date-input input {
             width: 100%;
             padding-right: 40px; /* Space for day of week */
+            cursor: pointer; /* カーソルをポインターに変更 */
+            background-color: white; /* 背景を白に */
         }
 
         .day-of-week {
@@ -85,6 +92,7 @@
         .time-inputs input {
             width: 80px;
             text-align: center;
+            cursor: pointer; /* カーソルをポインターに */
         }
 
         .time-inputs span {
@@ -153,6 +161,16 @@
             background-color: #ebf5fb; /* 薄い青色の背景 */
             transition: background-color 0.8s ease-out;
         }
+        
+        /* アニメーション用スタイル */
+        @keyframes highlightFade {
+            0% { background-color: #ebf5fb; }
+            100% { background-color: white; }
+        }
+        
+        .highlight-animation {
+            animation: highlightFade 0.8s ease-out forwards;
+        }
 
         #addDateBtn {
             background-color: #3498db;
@@ -207,7 +225,7 @@
             opacity: 0.9;
         }
         
-        /* 新しいスタイル - ツールチップ */
+        /* ツールチップ */
         .tooltip {
             position: relative;
         }
@@ -234,12 +252,56 @@
             opacity: 1;
             visibility: visible;
         }
+        
+        /* Flatpickrカスタマイズ */
+        .flatpickr-calendar {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            box-shadow: 0 3px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .flatpickr-day.selected {
+            background: #3498db;
+            border-color: #3498db;
+        }
+        
+        /* 時刻選択ドロップダウン用スタイル */
+        .time-dropdown {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            display: none;
+            min-width: 80px;
+        }
+        
+        .time-dropdown-item {
+            padding: 6px 10px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 13px;
+            text-align: left;
+            white-space: nowrap;
+        }
+        
+        .time-dropdown-item:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .time-dropdown-item.selected {
+            background-color: #e6f3fa;
+            color: #3498db;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>日程候補作成ツール</h1>
-        <div class="instructions">各欄にマウスを置いてマウスホイールを上下するだけで、空欄からでも日時を簡単に入力・調整できます</div>
+        <div class="instructions">日付・時刻入力欄をクリックして選択、またはマウスホイールで調整できます（Ctrlキー+ホイールで分単位調整）</div>
         
         <div id="dateEntries">
             <!-- Date entries will be added here -->
@@ -257,6 +319,9 @@
         </div>
     </div>
 
+    <!-- 時刻選択ドロップダウン -->
+    <div id="timeDropdown" class="time-dropdown"></div>
+
     <script>
         // Initialize when document is ready
         document.addEventListener('DOMContentLoaded', function() {
@@ -268,6 +333,20 @@
             
             // Add event listener to copy button
             document.getElementById('copyBtn').addEventListener('click', copyToClipboard);
+            
+            // グローバルクリックイベントリスナーを追加（ドロップダウン外をクリックで閉じる）
+            document.addEventListener('click', function(event) {
+                const dropdown = document.getElementById('timeDropdown');
+                if (dropdown.style.display === 'block') {
+                    const clickedElement = event.target;
+                    // 時刻入力フィールドかドロップダウン自体のクリックでなければ閉じる
+                    if (!clickedElement.classList.contains('start-time') && 
+                        !clickedElement.classList.contains('end-time') && 
+                        !dropdown.contains(clickedElement)) {
+                        closeTimeDropdown();
+                    }
+                }
+            });
         });
         
         // Setup empty state visibility and handlers
@@ -333,12 +412,19 @@
                 dateEntries.appendChild(entryDiv);
             }
             
-            // ハイライト効果を0.8秒後に消す
-            setTimeout(() => {
-                if (entryDiv.classList.contains('highlight-new-entry')) {
+            // アニメーションを適用するためのタイミング調整
+            requestAnimationFrame(() => {
+                // 別のクラスに変更しアニメーションを適用
+                setTimeout(() => {
                     entryDiv.classList.remove('highlight-new-entry');
-                }
-            }, 800);
+                    entryDiv.classList.add('highlight-animation');
+                    
+                    // アニメーション完了後にクラスを削除
+                    setTimeout(() => {
+                        entryDiv.classList.remove('highlight-animation');
+                    }, 800);
+                }, 10);
+            });
             
             
             // Add event listeners to the new inputs
@@ -380,29 +466,41 @@
                 }
             }
             
-            dateInput.addEventListener('blur', handleDateInput);
-            dateInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    handleDateInput.call(this);
-                }
-            });
+            // 新しい日付ピッカーを初期化
+            initializeDatePicker(dateInput, dayOfWeekElement);
+            
+            // マウスホイールイベントも追加
             dateInput.addEventListener('wheel', handleDateWheel);
             
+            // 開始時刻の入力イベント
             startTimeInput.addEventListener('blur', handleStartTimeInput);
             startTimeInput.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
                     handleStartTimeInput.call(this);
+                    closeTimeDropdown();
+                    e.preventDefault(); // フォーム送信防止
                 }
             });
             startTimeInput.addEventListener('wheel', handleStartTimeWheel);
+            // クリックイベントを追加（時刻選択ドロップダウン用）
+            startTimeInput.addEventListener('click', function() {
+                showTimeDropdown(this, true);
+            });
             
+            // 終了時刻の入力イベント
             endTimeInput.addEventListener('blur', handleEndTimeInput);
             endTimeInput.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
                     handleEndTimeInput.call(this);
+                    closeTimeDropdown();
+                    e.preventDefault(); // フォーム送信防止
                 }
             });
             endTimeInput.addEventListener('wheel', handleEndTimeWheel);
+            // クリックイベントを追加（時刻選択ドロップダウン用）
+            endTimeInput.addEventListener('click', function() {
+                showTimeDropdown(this, false);
+            });
             
             removeBtn.addEventListener('click', function() {
                 dateEntries.removeChild(entryDiv);
@@ -422,30 +520,327 @@
             // Update formatted results since we've added new entry with values
             updateFormattedResults();
         }
-
-        // Handle date input - parse and format date
-        function handleDateInput() {
+        
+        // 日付ピッカーを初期化する関数
+        function initializeDatePicker(dateInput, dayOfWeekElement) {
+            const fp = flatpickr(dateInput, {
+                dateFormat: "Y/m/d",
+                locale: "ja",
+                disableMobile: true,
+                allowInput: true,
+                position: "below", // カレンダーを入力欄の下に表示
+                positionElement: dateInput, // ポジション計算の基準要素を指定
+                static: true, // 必要に応じて静的配置
+                onChange: function(selectedDates, dateStr, instance) {
+                    if (selectedDates.length > 0) {
+                        const date = selectedDates[0];
+                        const dayOfWeek = getDayOfWeekJapanese(date);
+                        dayOfWeekElement.textContent = `(${dayOfWeek})`;
+                        updateFormattedResults();
+                    }
+                }
+            });
+            
+            // 今日の日付をセットする（選択されていない場合）
+            if (!dateInput.value) {
+                const dateEntries = document.querySelectorAll('.date-entry');
+                let entryIndex = -1;
+                let currentEntry = dateInput.closest('.date-entry');
+                
+                for (let i = 0; i < dateEntries.length; i++) {
+                    if (dateEntries[i] === currentEntry) {
+                        entryIndex = i;
+                        break;
+                    }
+                }
+                
+                let dateToUse = new Date();
+                
+                if (entryIndex > 0) {
+                    const previousDateInput = dateEntries[entryIndex - 1].querySelector('.date');
+                    if (previousDateInput && previousDateInput.value) {
+                        const previousDate = parseFlexibleDate(previousDateInput.value);
+                        if (previousDate && previousDate > dateToUse) {
+                            dateToUse = previousDate;
+                        }
+                    }
+                }
+                
+                fp.setDate(dateToUse);
+                const dayOfWeek = getDayOfWeekJapanese(dateToUse);
+                dayOfWeekElement.textContent = `(${dayOfWeek})`;
+            }
+        }
+        
+                    // 時間差を「○時間」または「○時間○分」の形式でフォーマットする関数
+        function formatTimeDifference(startTime, endTime) {
+            if (!startTime || !endTime) return '';
+            
+            // 時間差を分単位で計算
+            const diffMs = endTime.getTime() - startTime.getTime();
+            const diffMinutes = Math.round(diffMs / (1000 * 60));
+            
+            if (diffMinutes <= 0) return '';
+            
+            const hours = Math.floor(diffMinutes / 60);
+            const minutes = diffMinutes % 60;
+            
+            if (minutes === 0) {
+                return `(${hours}時間)`;
+            } else {
+                return `(${hours}時間${minutes}分)`;
+            }
+        }
+        
+        // 時刻選択ドロップダウンを表示する関数
+        function showTimeDropdown(inputElement, isStartTime) {
+            // 既存のドロップダウンを閉じる
+            closeTimeDropdown();
+            
+            const dropdown = document.getElementById('timeDropdown');
+            
+            // 入力値から適切な時刻パターンを取得
+            let baseMinute = 0;
+            let currentValue = inputElement.value.trim();
+            
+            if (currentValue) {
+                const parsedTime = parseFlexibleTime(currentValue);
+                if (parsedTime) {
+                    baseMinute = parsedTime.getMinutes() % 30;
+                }
+            }
+            
+            // ドロップダウンの位置を設定
+            const rect = inputElement.getBoundingClientRect();
+            dropdown.style.top = (rect.bottom + window.scrollY) + 'px';
+            dropdown.style.left = (rect.left + window.scrollX) + 'px';
+            dropdown.style.width = isStartTime ? rect.width + 'px' : '150px'; // 終了時刻の場合は幅を広げる
+            
+            // ドロップダウンの中身をクリア
+            dropdown.innerHTML = '';
+            
+            // デフォルト時刻（未入力時）
+            let defaultHour = 8;
+            let defaultMinute = 0;
+            
+            // 現在入力されている値を取得
+            if (currentValue) {
+                const parsedTime = parseFlexibleTime(currentValue);
+                if (parsedTime) {
+                    defaultHour = parsedTime.getHours();
+                    defaultMinute = parsedTime.getMinutes();
+                }
+            }
+            
+            // 最小時刻の設定（終了時刻の場合は開始時刻以降）
+            let startTime = null;
+            if (!isStartTime) {
+                const startTimeInput = inputElement.closest('.date-entry').querySelector('.start-time');
+                if (startTimeInput && startTimeInput.value) {
+                    startTime = parseFlexibleTime(startTimeInput.value);
+                }
+            }
+            
+            // 30分刻みの時刻パターンを生成
+            let timePattern1 = baseMinute;
+            let timePattern2 = (baseMinute + 30) % 60;
+            
+            // 選択された時刻を記憶するための変数
+            let selectedTime = null;
+            
+            // 時刻選択肢を生成
+            for (let hour = 0; hour < 24; hour++) {
+                for (let minutePattern of [timePattern1, timePattern2].sort()) {
+                    // 現在の時刻を生成
+                    const currentTime = new Date();
+                    currentTime.setHours(hour, minutePattern, 0, 0);
+                    
+                    // 開始時刻より前の時間は終了時刻の選択肢から除外
+                    if (!isStartTime && startTime) {
+                        if (currentTime <= startTime) {
+                            continue;
+                        }
+                    }
+                    
+                    const formattedHour = hour.toString().padStart(2, '0');
+                    const formattedMinute = minutePattern.toString().padStart(2, '0');
+                    const timeString = `${formattedHour}:${formattedMinute}`;
+                    
+                    const timeItem = document.createElement('div');
+                    timeItem.className = 'time-dropdown-item';
+                    
+                    // 終了時刻の場合、開始時刻からの経過時間も表示
+                    if (!isStartTime && startTime) {
+                        const timeDiff = formatTimeDifference(startTime, currentTime);
+                        timeItem.textContent = `${timeString} ${timeDiff}`;
+                    } else {
+                        timeItem.textContent = timeString;
+                    }
+                    
+                    // デフォルト選択の設定
+                    if (hour === defaultHour && minutePattern === defaultMinute) {
+                        timeItem.classList.add('selected');
+                        selectedTime = timeString;
+                    }
+                    
+                    // クリックイベントを追加
+                    timeItem.addEventListener('click', function() {
+                        // 時刻部分のみを取得（経過時間部分を除く）
+                        const selectedTime = this.textContent.split(' ')[0];
+                        inputElement.value = selectedTime;
+                        
+                        // 連動処理
+                        if (isStartTime) {
+                            handleStartTimeInput.call(inputElement);
+                        } else {
+                            handleEndTimeInput.call(inputElement);
+                        }
+                        
+                        closeTimeDropdown();
+                    });
+                    
+                    dropdown.appendChild(timeItem);
+                }
+            }
+            
+            // ドロップダウンを表示
+            dropdown.style.display = 'block';
+            
+            // スクロール位置を選択項目に合わせる
+            if (selectedTime) {
+                const selectedElement = Array.from(dropdown.querySelectorAll('.time-dropdown-item')).find(el => el.textContent.startsWith(selectedTime));
+                if (selectedElement) {
+                    setTimeout(() => {
+                        selectedElement.scrollIntoView({ block: 'center' });
+                    }, 0);
+                }
+            } else {
+                // デフォルトで8:00または開始時刻+1時間を表示位置に
+                let defaultTimeString = "08:00";
+                if (!isStartTime && startTime) {
+                    const endTime = new Date(startTime);
+                    endTime.setHours(endTime.getHours() + 1);
+                    const h = endTime.getHours().toString().padStart(2, '0');
+                    const m = endTime.getMinutes().toString().padStart(2, '0');
+                    defaultTimeString = `${h}:${m}`;
+                }
+                
+                const defaultElement = Array.from(dropdown.querySelectorAll('.time-dropdown-item')).find(el => el.textContent.startsWith(defaultTimeString));
+                if (defaultElement) {
+                    setTimeout(() => {
+                        defaultElement.scrollIntoView({ block: 'center' });
+                    }, 0);
+                }
+            }
+        }
+        
+        // 時刻選択ドロップダウンを閉じる関数
+        function closeTimeDropdown() {
+            const dropdown = document.getElementById('timeDropdown');
+            dropdown.style.display = 'none';
+        }
+        
+        // Handling date wheel event
+        function handleDateWheel(event) {
+            event.preventDefault();
+            
             const dateInput = this;
-            const dateValue = dateInput.value.trim();
+            let dateValue = dateInput.value.trim();
             
-            if (!dateValue) return;
-            
-            const parsedDate = parseFlexibleDate(dateValue);
-            
-            if (parsedDate) {
-                // Format date as YYYY/MM/DD
-                const year = parsedDate.getFullYear();
-                const month = (parsedDate.getMonth() + 1).toString().padStart(2, '0');
-                const day = parsedDate.getDate().toString().padStart(2, '0');
+            // If no date is entered, use today's date or the date from the previous entry
+            if (!dateValue) {
+                // Get today's date
+                const today = new Date();
+                
+                // Check for previous entry's date
+                const dateEntries = document.querySelectorAll('.date-entry');
+                let entryIndex = -1;
+                let currentEntry = dateInput.closest('.date-entry');
+                
+                for (let i = 0; i < dateEntries.length; i++) {
+                    if (dateEntries[i] === currentEntry) {
+                        entryIndex = i;
+                        break;
+                    }
+                }
+                
+                let previousDate = null;
+                if (entryIndex > 0) {
+                    const previousDateInput = dateEntries[entryIndex - 1].querySelector('.date');
+                    if (previousDateInput && previousDateInput.value) {
+                        previousDate = parseFlexibleDate(previousDateInput.value);
+                    }
+                }
+                
+                // Use the later of today or the previous entry's date
+                let dateToUse = today;
+                if (previousDate && previousDate > today) {
+                    dateToUse = previousDate;
+                }
+                
+                // Format as YYYY/MM/DD
+                const year = dateToUse.getFullYear();
+                const month = (dateToUse.getMonth() + 1).toString().padStart(2, '0');
+                const day = dateToUse.getDate().toString().padStart(2, '0');
                 dateInput.value = `${year}/${month}/${day}`;
                 
                 // Update day of week
                 const dayOfWeekElement = dateInput.closest('.date-entry').querySelector('.day-of-week');
-                const dayOfWeek = getDayOfWeekJapanese(parsedDate);
+                const dayOfWeek = getDayOfWeekJapanese(dateToUse);
                 dayOfWeekElement.textContent = `(${dayOfWeek})`;
+                
+                // Update formatted results
+                updateFormattedResults();
+                
+                // Return early without adjusting the date
+                return;
             }
             
+            // Parse the current date
+            const currentDate = parseFlexibleDate(dateValue);
+            if (!currentDate) return;
+            
+            // Adjust the date based on wheel direction
+            if (event.deltaY < 0) {
+                // Scroll up - decrement date by 1 day
+                currentDate.setDate(currentDate.getDate() - 1);
+            } else {
+                // Scroll down - increment date by 1 day
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
+            
+            // Format the new date as YYYY/MM/DD
+            const year = currentDate.getFullYear();
+            const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
+            const day = currentDate.getDate().toString().padStart(2, '0');
+            dateInput.value = `${year}/${month}/${day}`;
+            
+            // Update day of week
+            const dayOfWeekElement = dateInput.closest('.date-entry').querySelector('.day-of-week');
+            const dayOfWeek = getDayOfWeekJapanese(currentDate);
+            dayOfWeekElement.textContent = `(${dayOfWeek})`;
+            
+            // Update flatpickr instance
+            const flatpickrInstance = dateInput._flatpickr;
+            if (flatpickrInstance) {
+                flatpickrInstance.setDate(currentDate, true);
+            }
+            
+            // Update formatted results
             updateFormattedResults();
+        }
+
+        // Convert full-width characters to half-width
+        function convertFullWidthToHalfWidth(str) {
+            return str.replace(/[！-～]/g, function(s) {
+                return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+            }).replace(/　/g, ' ');
+        }
+
+        // Get Japanese day of week
+        function getDayOfWeekJapanese(date) {
+            const daysJp = ['日', '月', '火', '水', '木', '金', '土'];
+            return daysJp[date.getDay()];
         }
 
         // Parse date with flexible formats
@@ -546,19 +941,6 @@
             return inputDate;
         }
 
-        // Convert full-width characters to half-width
-        function convertFullWidthToHalfWidth(str) {
-            return str.replace(/[！-～]/g, function(s) {
-                return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
-            }).replace(/　/g, ' ');
-        }
-
-        // Get Japanese day of week
-        function getDayOfWeekJapanese(date) {
-            const daysJp = ['日', '月', '火', '水', '木', '金', '土'];
-            return daysJp[date.getDay()];
-        }
-
         // Handle start time input
         function handleStartTimeInput() {
             const startTimeInput = this;
@@ -574,15 +956,45 @@
                 const minutes = parsedTime.getMinutes().toString().padStart(2, '0');
                 startTimeInput.value = `${hours}:${minutes}`;
                 
-                // If end time is empty, set it to 1 hour later
+                // Get end time input element
                 const endTimeInput = startTimeInput.closest('.date-entry').querySelector('.end-time');
-                if (!endTimeInput.value.trim()) {
-                    const endTime = new Date(parsedTime);
-                    endTime.setHours(endTime.getHours() + 1);
-                    const endHours = endTime.getHours().toString().padStart(2, '0');
-                    const endMinutes = endTime.getMinutes().toString().padStart(2, '0');
-                    endTimeInput.value = `${endHours}:${endMinutes}`;
+                const endTimeValue = endTimeInput.value.trim();
+                
+                // Calculate new end time based on start time
+                let endTime = new Date(parsedTime);
+                // Default to 1 hour later if no end time is specified
+                endTime.setHours(endTime.getHours() + 1);
+                
+                // If end time exists, try to maintain the time difference if possible
+                if (endTimeValue) {
+                    const currentEndTime = parseFlexibleTime(endTimeValue);
+                    if (currentEndTime) {
+                        // Calculate time difference in minutes
+                        const diffMinutes = Math.round((currentEndTime - parsedTime) / (1000 * 60));
+                        
+                        if (diffMinutes > 0) {
+                            // Maintain the time difference
+                            endTime = new Date(parsedTime);
+                            endTime.setMinutes(endTime.getMinutes() + diffMinutes);
+                        }
+                    }
                 }
+                
+                // Ensure end time minutes follow the same pattern as start time
+                const startMinutePattern = parsedTime.getMinutes() % 30;
+                // Adjust end time minutes to match start time pattern
+                const adjustedEndMinutes = Math.floor(endTime.getMinutes() / 30) * 30 + startMinutePattern;
+                endTime.setMinutes(adjustedEndMinutes);
+                
+                // If adjusted end time is before or equal to start time, add 30 minutes
+                if (endTime <= parsedTime) {
+                    endTime.setMinutes(endTime.getMinutes() + 30);
+                }
+                
+                // Update end time value
+                const endHours = endTime.getHours().toString().padStart(2, '0');
+                const endMinutes = endTime.getMinutes().toString().padStart(2, '0');
+                endTimeInput.value = `${endHours}:${endMinutes}`;
             }
             
             updateFormattedResults();
@@ -598,6 +1010,30 @@
             const parsedTime = parseFlexibleTime(endTimeValue);
             
             if (parsedTime) {
+                // Get start time input element
+                const startTimeInput = endTimeInput.closest('.date-entry').querySelector('.start-time');
+                const startTimeValue = startTimeInput.value.trim();
+                
+                // If start time exists, ensure end time is after start time
+                if (startTimeValue) {
+                    const startTime = parseFlexibleTime(startTimeValue);
+                    if (startTime && parsedTime <= startTime) {
+                        // End time is before or equal to start time, adjust it to 30 minutes after start time
+                        const newEndTime = new Date(startTime);
+                        newEndTime.setMinutes(newEndTime.getMinutes() + 30);
+                        
+                        // Update parsedTime
+                        parsedTime.setHours(newEndTime.getHours());
+                        parsedTime.setMinutes(newEndTime.getMinutes());
+                    }
+                    
+                    // 手入力時には分パターンの強制調整は行わない
+                    // ただし、開始時刻より前になる場合のみ調整
+                    if (parsedTime <= startTime) {
+                        parsedTime.setMinutes(parsedTime.getMinutes() + 30);
+                    }
+                }
+                
                 // Format time as HH:MM
                 const hours = parsedTime.getHours().toString().padStart(2, '0');
                 const minutes = parsedTime.getMinutes().toString().padStart(2, '0');
@@ -653,90 +1089,6 @@
             return now;
         }
 
-        // Handling date wheel event
-        function handleDateWheel(event) {
-            event.preventDefault();
-            
-            const dateInput = this;
-            let dateValue = dateInput.value.trim();
-            
-            // If no date is entered, use today's date or the date from the previous entry
-            if (!dateValue) {
-                // Get today's date
-                const today = new Date();
-                
-                // Check for previous entry's date
-                const dateEntries = document.querySelectorAll('.date-entry');
-                let entryIndex = -1;
-                let currentEntry = dateInput.closest('.date-entry');
-                
-                for (let i = 0; i < dateEntries.length; i++) {
-                    if (dateEntries[i] === currentEntry) {
-                        entryIndex = i;
-                        break;
-                    }
-                }
-                
-                let previousDate = null;
-                if (entryIndex > 0) {
-                    const previousDateInput = dateEntries[entryIndex - 1].querySelector('.date');
-                    if (previousDateInput && previousDateInput.value) {
-                        previousDate = parseFlexibleDate(previousDateInput.value);
-                    }
-                }
-                
-                // Use the later of today or the previous entry's date
-                let dateToUse = today;
-                if (previousDate && previousDate > today) {
-                    dateToUse = previousDate;
-                }
-                
-                // Format as YYYY/MM/DD
-                const year = dateToUse.getFullYear();
-                const month = (dateToUse.getMonth() + 1).toString().padStart(2, '0');
-                const day = dateToUse.getDate().toString().padStart(2, '0');
-                dateInput.value = `${year}/${month}/${day}`;
-                
-                // Update day of week
-                const dayOfWeekElement = dateInput.closest('.date-entry').querySelector('.day-of-week');
-                const dayOfWeek = getDayOfWeekJapanese(dateToUse);
-                dayOfWeekElement.textContent = `(${dayOfWeek})`;
-                
-                // Update formatted results
-                updateFormattedResults();
-                
-                // Return early without adjusting the date
-                return;
-            }
-            
-            // Parse the current date
-            const currentDate = parseFlexibleDate(dateValue);
-            if (!currentDate) return;
-            
-            // Adjust the date based on wheel direction
-            if (event.deltaY < 0) {
-                // Scroll up - decrement date by 1 day
-                currentDate.setDate(currentDate.getDate() - 1);
-            } else {
-                // Scroll down - increment date by 1 day
-                currentDate.setDate(currentDate.getDate() + 1);
-            }
-            
-            // Format the new date as YYYY/MM/DD
-            const year = currentDate.getFullYear();
-            const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
-            const day = currentDate.getDate().toString().padStart(2, '0');
-            dateInput.value = `${year}/${month}/${day}`;
-            
-            // Update day of week
-            const dayOfWeekElement = dateInput.closest('.date-entry').querySelector('.day-of-week');
-            const dayOfWeek = getDayOfWeekJapanese(currentDate);
-            dayOfWeekElement.textContent = `(${dayOfWeek})`;
-            
-            // Update formatted results
-            updateFormattedResults();
-        }
-        
         // Handling start time wheel event
         function handleStartTimeWheel(event) {
             event.preventDefault();
@@ -814,13 +1166,16 @@
                 timeDiff = currentEndTime.getTime() - currentStartTime.getTime();
             }
             
+            // Determine the time adjustment increment based on Ctrl key state
+            const timeIncrement = event.ctrlKey ? 1 : 30; // 1分単位または30分単位
+            
             // Adjust the start time based on wheel direction
             if (event.deltaY < 0) {
-                // Scroll up - decrement time by 30 minutes
-                currentStartTime.setMinutes(currentStartTime.getMinutes() - 30);
+                // Scroll up - decrement time by increment amount
+                currentStartTime.setMinutes(currentStartTime.getMinutes() - timeIncrement);
             } else {
-                // Scroll down - increment time by 30 minutes
-                currentStartTime.setMinutes(currentStartTime.getMinutes() + 30);
+                // Scroll down - increment time by increment amount
+                currentStartTime.setMinutes(currentStartTime.getMinutes() + timeIncrement);
             }
             
             // Format the new start time as HH:MM
@@ -943,18 +1298,23 @@
                 return;
             }
             
+            // Determine the time adjustment increment based on Ctrl key state
+            const timeIncrement = event.ctrlKey ? 1 : 30; // 1分単位または30分単位
+            
             // Adjust the end time based on wheel direction
             if (event.deltaY < 0) {
-                // Scroll up - decrement time by 30 minutes
-                currentEndTime.setMinutes(currentEndTime.getMinutes() - 30);
+                // Scroll up - decrement time by increment amount
+                currentEndTime.setMinutes(currentEndTime.getMinutes() - timeIncrement);
                 
                 // Ensure end time is not earlier than start time
-                if (currentEndTime < currentStartTime) {
+                if (currentEndTime <= currentStartTime) {
+                    // Add minimum increment to start time
                     currentEndTime = new Date(currentStartTime);
+                    currentEndTime.setMinutes(currentEndTime.getMinutes() + (event.ctrlKey ? 1 : 30));
                 }
             } else {
-                // Scroll down - increment time by 30 minutes
-                currentEndTime.setMinutes(currentEndTime.getMinutes() + 30);
+                // Scroll down - increment time by increment amount
+                currentEndTime.setMinutes(currentEndTime.getMinutes() + timeIncrement);
             }
             
             // Format the new end time as HH:MM
@@ -1022,9 +1382,19 @@
                         }
                     }
                     
+                    // 開始時刻と終了時刻の時間差を計算（終了時刻がある場合）
+                    let timeDiffText = '';
+                    if (startTimeInput.value && endTimeInput.value) {
+                        const startTime = parseFlexibleTime(startTimeInput.value);
+                        const endTime = parseFlexibleTime(endTimeInput.value);
+                        if (startTime && endTime) {
+                            timeDiffText = formatTimeDifference(startTime, endTime);
+                        }
+                    }
+                    
                     let line = `${dateText}${dayOfWeekText} ${startTime}`;
                     if (endTime) {
-                        line += `～${endTime}`;
+                        line += `～${endTime} ${timeDiffText}`;
                     }
                     
                     formattedText += line + '\n';
