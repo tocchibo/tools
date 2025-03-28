@@ -92,6 +92,7 @@
         .time-inputs input {
             width: 80px;
             text-align: center;
+            cursor: pointer; /* カーソルをポインターに */
         }
 
         .time-inputs span {
@@ -252,12 +253,44 @@
             background: #3498db;
             border-color: #3498db;
         }
+        
+        /* 時刻選択ドロップダウン用スタイル */
+        .time-dropdown {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            display: none;
+            width: 80px;
+        }
+        
+        .time-dropdown-item {
+            padding: 6px 10px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            font-size: 13px;
+            text-align: center;
+        }
+        
+        .time-dropdown-item:hover {
+            background-color: #f0f0f0;
+        }
+        
+        .time-dropdown-item.selected {
+            background-color: #e6f3fa;
+            color: #3498db;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>日程候補作成ツール</h1>
-        <div class="instructions">日付入力欄をクリックしてカレンダーから選択、または時間入力欄のマウスホイールで調整できます</div>
+        <div class="instructions">日付・時刻入力欄をクリックして選択、またはマウスホイールで調整できます</div>
         
         <div id="dateEntries">
             <!-- Date entries will be added here -->
@@ -275,6 +308,9 @@
         </div>
     </div>
 
+    <!-- 時刻選択ドロップダウン -->
+    <div id="timeDropdown" class="time-dropdown"></div>
+
     <script>
         // Initialize when document is ready
         document.addEventListener('DOMContentLoaded', function() {
@@ -286,6 +322,20 @@
             
             // Add event listener to copy button
             document.getElementById('copyBtn').addEventListener('click', copyToClipboard);
+            
+            // グローバルクリックイベントリスナーを追加（ドロップダウン外をクリックで閉じる）
+            document.addEventListener('click', function(event) {
+                const dropdown = document.getElementById('timeDropdown');
+                if (dropdown.style.display === 'block') {
+                    const clickedElement = event.target;
+                    // 時刻入力フィールドかドロップダウン自体のクリックでなければ閉じる
+                    if (!clickedElement.classList.contains('start-time') && 
+                        !clickedElement.classList.contains('end-time') && 
+                        !dropdown.contains(clickedElement)) {
+                        closeTimeDropdown();
+                    }
+                }
+            });
         });
         
         // Setup empty state visibility and handlers
@@ -404,21 +454,35 @@
             // マウスホイールイベントも追加
             dateInput.addEventListener('wheel', handleDateWheel);
             
+            // 開始時刻の入力イベント
             startTimeInput.addEventListener('blur', handleStartTimeInput);
             startTimeInput.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
                     handleStartTimeInput.call(this);
+                    closeTimeDropdown();
+                    e.preventDefault(); // フォーム送信防止
                 }
             });
             startTimeInput.addEventListener('wheel', handleStartTimeWheel);
+            // クリックイベントを追加（時刻選択ドロップダウン用）
+            startTimeInput.addEventListener('click', function() {
+                showTimeDropdown(this, true);
+            });
             
+            // 終了時刻の入力イベント
             endTimeInput.addEventListener('blur', handleEndTimeInput);
             endTimeInput.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') {
                     handleEndTimeInput.call(this);
+                    closeTimeDropdown();
+                    e.preventDefault(); // フォーム送信防止
                 }
             });
             endTimeInput.addEventListener('wheel', handleEndTimeWheel);
+            // クリックイベントを追加（時刻選択ドロップダウン用）
+            endTimeInput.addEventListener('click', function() {
+                showTimeDropdown(this, false);
+            });
             
             removeBtn.addEventListener('click', function() {
                 dateEntries.removeChild(entryDiv);
@@ -488,6 +552,141 @@
                 const dayOfWeek = getDayOfWeekJapanese(dateToUse);
                 dayOfWeekElement.textContent = `(${dayOfWeek})`;
             }
+        }
+        
+                    // 時刻選択ドロップダウンを表示する関数
+        function showTimeDropdown(inputElement, isStartTime) {
+            // 既存のドロップダウンを閉じる
+            closeTimeDropdown();
+            
+            const dropdown = document.getElementById('timeDropdown');
+            
+            // 入力値から適切な時刻パターンを取得
+            let baseMinute = 0;
+            let currentValue = inputElement.value.trim();
+            
+            if (currentValue) {
+                const parsedTime = parseFlexibleTime(currentValue);
+                if (parsedTime) {
+                    baseMinute = parsedTime.getMinutes() % 30;
+                }
+            }
+            
+            // ドロップダウンの位置を設定
+            const rect = inputElement.getBoundingClientRect();
+            dropdown.style.top = (rect.bottom + window.scrollY) + 'px';
+            dropdown.style.left = (rect.left + window.scrollX) + 'px';
+            dropdown.style.width = rect.width + 'px';
+            
+            // ドロップダウンの中身をクリア
+            dropdown.innerHTML = '';
+            
+            // デフォルト時刻（未入力時）
+            let defaultHour = 8;
+            let defaultMinute = 0;
+            
+            // 現在入力されている値を取得
+            if (currentValue) {
+                const parsedTime = parseFlexibleTime(currentValue);
+                if (parsedTime) {
+                    defaultHour = parsedTime.getHours();
+                    defaultMinute = parsedTime.getMinutes();
+                }
+            }
+            
+            // 最小時刻の設定（終了時刻の場合は開始時刻以降）
+            let minTime = null;
+            if (!isStartTime) {
+                const startTimeInput = inputElement.closest('.date-entry').querySelector('.start-time');
+                if (startTimeInput && startTimeInput.value) {
+                    minTime = parseFlexibleTime(startTimeInput.value);
+                }
+            }
+            
+            // 30分刻みの時刻パターンを生成
+            let timePattern1 = baseMinute;
+            let timePattern2 = (baseMinute + 30) % 60;
+            
+            // 選択された時刻を記憶するための変数
+            let selectedTime = null;
+            
+            // 時刻選択肢を生成
+            for (let hour = 0; hour < 24; hour++) {
+                for (let minutePattern of [timePattern1, timePattern2].sort()) {
+                    // 開始時刻より前の時間は終了時刻の選択肢から除外
+                    if (minTime) {
+                        const currentTime = new Date();
+                        currentTime.setHours(hour, minutePattern, 0, 0);
+                        if (currentTime < minTime) {
+                            continue;
+                        }
+                    }
+                    
+                    const formattedHour = hour.toString().padStart(2, '0');
+                    const formattedMinute = minutePattern.toString().padStart(2, '0');
+                    const timeString = `${formattedHour}:${formattedMinute}`;
+                    
+                    const timeItem = document.createElement('div');
+                    timeItem.className = 'time-dropdown-item';
+                    timeItem.textContent = timeString;
+                    
+                    // デフォルト選択の設定
+                    if (hour === defaultHour && minutePattern === defaultMinute) {
+                        timeItem.classList.add('selected');
+                        selectedTime = timeString;
+                    }
+                    
+                    // クリックイベントを追加
+                    timeItem.addEventListener('click', function() {
+                        inputElement.value = timeString;
+                        
+                        // 連動処理
+                        if (isStartTime) {
+                            handleStartTimeInput.call(inputElement);
+                        } else {
+                            handleEndTimeInput.call(inputElement);
+                        }
+                        
+                        closeTimeDropdown();
+                    });
+                    
+                    dropdown.appendChild(timeItem);
+                }
+            }
+            
+            // ドロップダウンを表示
+            dropdown.style.display = 'block';
+            
+            // スクロール位置を選択項目に合わせる
+            if (selectedTime) {
+                const selectedElement = Array.from(dropdown.querySelectorAll('.time-dropdown-item')).find(el => el.textContent === selectedTime);
+                if (selectedElement) {
+                    setTimeout(() => {
+                        selectedElement.scrollIntoView({ block: 'center' });
+                    }, 0);
+                }
+            } else {
+                // デフォルトで8:00または最小時間を表示位置に
+                let defaultTimeString = "08:00";
+                if (minTime) {
+                    const h = minTime.getHours().toString().padStart(2, '0');
+                    const m = minTime.getMinutes().toString().padStart(2, '0');
+                    defaultTimeString = `${h}:${m}`;
+                }
+                
+                const defaultElement = Array.from(dropdown.querySelectorAll('.time-dropdown-item')).find(el => el.textContent === defaultTimeString);
+                if (defaultElement) {
+                    setTimeout(() => {
+                        defaultElement.scrollIntoView({ block: 'center' });
+                    }, 0);
+                }
+            }
+        }
+        
+        // 時刻選択ドロップダウンを閉じる関数
+        function closeTimeDropdown() {
+            const dropdown = document.getElementById('timeDropdown');
+            dropdown.style.display = 'none';
         }
         
         // Handling date wheel event
@@ -706,15 +905,45 @@
                 const minutes = parsedTime.getMinutes().toString().padStart(2, '0');
                 startTimeInput.value = `${hours}:${minutes}`;
                 
-                // If end time is empty, set it to 1 hour later
+                // Get end time input element
                 const endTimeInput = startTimeInput.closest('.date-entry').querySelector('.end-time');
-                if (!endTimeInput.value.trim()) {
-                    const endTime = new Date(parsedTime);
-                    endTime.setHours(endTime.getHours() + 1);
-                    const endHours = endTime.getHours().toString().padStart(2, '0');
-                    const endMinutes = endTime.getMinutes().toString().padStart(2, '0');
-                    endTimeInput.value = `${endHours}:${endMinutes}`;
+                const endTimeValue = endTimeInput.value.trim();
+                
+                // Calculate new end time based on start time
+                let endTime = new Date(parsedTime);
+                // Default to 1 hour later if no end time is specified
+                endTime.setHours(endTime.getHours() + 1);
+                
+                // If end time exists, try to maintain the time difference if possible
+                if (endTimeValue) {
+                    const currentEndTime = parseFlexibleTime(endTimeValue);
+                    if (currentEndTime) {
+                        // Calculate time difference in minutes
+                        const diffMinutes = Math.round((currentEndTime - parsedTime) / (1000 * 60));
+                        
+                        if (diffMinutes > 0) {
+                            // Maintain the time difference
+                            endTime = new Date(parsedTime);
+                            endTime.setMinutes(endTime.getMinutes() + diffMinutes);
+                        }
+                    }
                 }
+                
+                // Ensure end time minutes follow the same pattern as start time
+                const startMinutePattern = parsedTime.getMinutes() % 30;
+                // Adjust end time minutes to match start time pattern
+                const adjustedEndMinutes = Math.floor(endTime.getMinutes() / 30) * 30 + startMinutePattern;
+                endTime.setMinutes(adjustedEndMinutes);
+                
+                // If adjusted end time is before or equal to start time, add 30 minutes
+                if (endTime <= parsedTime) {
+                    endTime.setMinutes(endTime.getMinutes() + 30);
+                }
+                
+                // Update end time value
+                const endHours = endTime.getHours().toString().padStart(2, '0');
+                const endMinutes = endTime.getMinutes().toString().padStart(2, '0');
+                endTimeInput.value = `${endHours}:${endMinutes}`;
             }
             
             updateFormattedResults();
@@ -730,6 +959,30 @@
             const parsedTime = parseFlexibleTime(endTimeValue);
             
             if (parsedTime) {
+                // Get start time input element
+                const startTimeInput = endTimeInput.closest('.date-entry').querySelector('.start-time');
+                const startTimeValue = startTimeInput.value.trim();
+                
+                // If start time exists, ensure end time is after start time
+                if (startTimeValue) {
+                    const startTime = parseFlexibleTime(startTimeValue);
+                    if (startTime && parsedTime <= startTime) {
+                        // End time is before or equal to start time, adjust it to 30 minutes after start time
+                        const newEndTime = new Date(startTime);
+                        newEndTime.setMinutes(newEndTime.getMinutes() + 30);
+                        
+                        // Update parsedTime
+                        parsedTime.setHours(newEndTime.getHours());
+                        parsedTime.setMinutes(newEndTime.getMinutes());
+                    }
+                    
+                    // 手入力時には分パターンの強制調整は行わない
+                    // ただし、開始時刻より前になる場合のみ調整
+                    if (parsedTime <= startTime) {
+                        parsedTime.setMinutes(parsedTime.getMinutes() + 30);
+                    }
+                }
+                
                 // Format time as HH:MM
                 const hours = parsedTime.getHours().toString().padStart(2, '0');
                 const minutes = parsedTime.getMinutes().toString().padStart(2, '0');
