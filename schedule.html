@@ -1382,19 +1382,9 @@
                         }
                     }
                     
-                    // 開始時刻と終了時刻の時間差を計算（終了時刻がある場合）
-                    let timeDiffText = '';
-                    if (startTimeInput.value && endTimeInput.value) {
-                        const startTime = parseFlexibleTime(startTimeInput.value);
-                        const endTime = parseFlexibleTime(endTimeInput.value);
-                        if (startTime && endTime) {
-                            timeDiffText = formatTimeDifference(startTime, endTime);
-                        }
-                    }
-                    
                     let line = `${dateText}${dayOfWeekText} ${startTime}`;
                     if (endTime) {
-                        line += `～${endTime} ${timeDiffText}`;
+                        line += `～${endTime}`;
                     }
                     
                     formattedText += line + '\n';
