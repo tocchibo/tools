@@ -14,7 +14,7 @@
             font-family: 'Helvetica Neue', Arial, sans-serif;
             line-height: 1.5;
             color: #333;
-            max-width: 800px;
+            max-width: 600px;
             margin: 0 auto;
             padding: 15px;
             box-sizing: border-box;
@@ -27,23 +27,24 @@
         .container {
             background-color: #f9f9f9;
             border-radius: 8px;
-            padding: 15px;
+            padding: 12px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             min-width: 320px;
+            margin: 0 auto;
         }
 
         h1 {
             text-align: center;
             color: #2c3e50;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
             font-size: 20px;
         }
         
         .instructions {
             text-align: center;
             color: #7f8c8d;
-            font-size: 13px;
-            margin-bottom: 15px;
+            font-size: 14px;
+            margin-bottom: 12px;
         }
 
         .date-entry {
@@ -51,16 +52,19 @@
             margin-bottom: 10px;
             align-items: center;
             background-color: white;
-            padding: 10px;
+            padding: 8px 10px;
             border-radius: 6px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
             position: relative;
+            gap: 0;
+            width: 100%;
         }
 
         .date-input {
-            width: 180px;
-            margin-right: 20px;
+            width: 40%;
             position: relative;
+            flex-shrink: 0;
+            margin-right: 10px;
         }
 
         .date-input input {
@@ -68,43 +72,52 @@
             padding-right: 40px; /* Space for day of week */
             cursor: pointer; /* カーソルをポインターに変更 */
             background-color: white; /* 背景を白に */
+            font-size: 14px;
         }
 
         .day-of-week {
-            width: 30px;
+            width: 25px;
             text-align: center;
             font-weight: bold;
             position: absolute;
-            right: 15px;
+            right: 8px;
             top: 50%;
             transform: translateY(-50%);
             z-index: 1;
             pointer-events: none; /* Allows clicks to pass through */
+            font-size: 14px;
         }
 
         .time-inputs {
             display: flex;
             align-items: center;
-            margin-right: 15px;
             flex-shrink: 0;
+            margin-right: 0;
+            gap: 0;
+            flex-grow: 1;
+            justify-content: center;
         }
 
         .time-inputs input {
-            width: 80px;
+            width: 100%;
             text-align: center;
-            cursor: pointer; /* カーソルをポインターに */
+            cursor: pointer;
+            font-size: 14px;
+            flex-grow: 1;
+            max-width: 100px;
         }
 
         .time-inputs span {
-            margin: 0 10px;
             flex-shrink: 0;
+            margin: 0 8px;
+            font-size: 14px;
         }
 
         input {
             padding: 6px;
             border: 1px solid #ddd;
             border-radius: 4px;
-            font-size: 13px;
+            font-size: 14px;
         }
 
         input:focus {
@@ -121,36 +134,28 @@
         .entry-actions {
             display: flex;
             align-items: center;
+            flex-shrink: 0;
+            gap: 4px;
         }
 
-        .remove-btn {
+        .remove-btn, .add-inline-btn {
             background-color: #e74c3c;
             color: white;
             border: none;
             border-radius: 50%;
-            width: 24px;
-            height: 24px;
+            width: 28px;
+            height: 28px;
             font-size: 14px;
             cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-left: 5px;
+            flex-shrink: 0;
+            margin: 0;
         }
 
         .add-inline-btn {
             background-color: #3498db;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            font-size: 14px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-left: 5px;
         }
 
         .insertion-indicator {
@@ -194,7 +199,7 @@
 
         h2 {
             color: #2c3e50;
-            font-size: 16px;
+            font-size: 18px;
             margin-bottom: 10px;
         }
 
@@ -214,8 +219,8 @@
             color: white;
             border: none;
             border-radius: 4px;
-            padding: 8px 16px;
-            font-size: 14px;
+            padding: 10px 20px;
+            font-size: 16px;
             cursor: pointer;
             display: block;
             margin: 0 auto;
@@ -301,7 +306,7 @@
 <body>
     <div class="container">
         <h1>日程候補作成ツール</h1>
-        <div class="instructions">日付・時刻入力欄をクリックして選択、またはマウスホイールで調整できます（Ctrlキー+ホイールで分単位調整）</div>
+        <div class="instructions">日付・時刻入力欄をクリックして選択、またはマウスホイールで調整できます <br>（Ctrlキー+ホイールで分単位調整）</div>
         
         <div id="dateEntries">
             <!-- Date entries will be added here -->
@@ -395,9 +400,9 @@
                     <div class="day-of-week"></div>
                 </div>
                 <div class="time-inputs">
-                    <input type="text" class="start-time" placeholder="開始時間">
+                    <input type="text" class="start-time" placeholder="開始">
                     <span>～</span>
-                    <input type="text" class="end-time" placeholder="終了時間">
+                    <input type="text" class="end-time" placeholder="終了">
                 </div>
                 <div class="entry-actions">
                     <button class="add-inline-btn tooltip" data-tooltip="この後に日程を追加">+</button>
@@ -1382,19 +1387,9 @@
                         }
                     }
                     
-                    // 開始時刻と終了時刻の時間差を計算（終了時刻がある場合）
-                    let timeDiffText = '';
-                    if (startTimeInput.value && endTimeInput.value) {
-                        const startTime = parseFlexibleTime(startTimeInput.value);
-                        const endTime = parseFlexibleTime(endTimeInput.value);
-                        if (startTime && endTime) {
-                            timeDiffText = formatTimeDifference(startTime, endTime);
-                        }
-                    }
-                    
                     let line = `${dateText}${dayOfWeekText} ${startTime}`;
                     if (endTime) {
-                        line += `～${endTime} ${timeDiffText}`;
+                        line += `～${endTime}`;
                     }
                     
                     formattedText += line + '\n';
