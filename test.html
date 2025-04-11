@@ -3,1465 +3,740 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>日程候補作成ツール</title>
-    <!-- Flatpickrライブラリとスタイルシートを追加 -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/themes/material_blue.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/flatpickr.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/flatpickr/4.6.13/l10n/ja.min.js"></script>
+    <title>ファイル・クリップボードAPI診断ツール</title>
     <style>
-        body {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            line-height: 1.5;
-            color: #333;
-            max-width: 600px;
-            margin: 0 auto;
-            padding: 15px;
-            box-sizing: border-box;
+        :root {
+            --primary: #4285f4;
+            --success: #0f9d58;
+            --warning: #f4b400;
+            --error: #db4437;
+            --bg-light: #f8f9fa;
+            --border: #dadce0;
         }
-        
+
         * {
             box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg-light);
+            color: #202124;
+            line-height: 1.6;
         }
 
         .container {
-            background-color: #f9f9f9;
-            border-radius: 8px;
-            padding: 12px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            min-width: 320px;
+            max-width: 800px;
             margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         }
 
         h1 {
             text-align: center;
-            color: #2c3e50;
-            margin-bottom: 3px;
-            font-size: 20px;
+            color: var(--primary);
+            margin-bottom: 20px;
         }
-        
-        .instructions {
+
+        .description {
             text-align: center;
-            color: #7f8c8d;
-            font-size: 14px;
-            margin-bottom: 12px;
+            margin-bottom: 30px;
+            color: #5f6368;
         }
 
-        .date-entry {
-            display: flex;
-            margin-bottom: 10px;
-            align-items: center;
-            background-color: white;
-            padding: 8px 10px;
-            border-radius: 6px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            position: relative;
-            gap: 0;
-            width: 100%;
-        }
-
-        .date-input {
-            width: 40%;
-            position: relative;
-            flex-shrink: 0;
-            margin-right: 10px;
-        }
-
-        .date-input input {
-            width: 100%;
-            padding-right: 40px; /* Space for day of week */
-            cursor: pointer; /* カーソルをポインターに変更 */
-            background-color: white; /* 背景を白に */
-            font-size: 14px;
-        }
-
-        .day-of-week {
-            width: 25px;
-            text-align: center;
-            font-weight: bold;
-            position: absolute;
-            right: 8px;
-            top: 50%;
-            transform: translateY(-50%);
-            z-index: 1;
-            pointer-events: none; /* Allows clicks to pass through */
-            font-size: 14px;
-        }
-
-        .time-inputs {
-            display: flex;
-            align-items: center;
-            flex-shrink: 0;
-            margin-right: 0;
-            gap: 0;
-            flex-grow: 1;
-            justify-content: center;
-        }
-
-        .time-inputs input {
-            width: 100%;
-            text-align: center;
-            cursor: pointer;
-            font-size: 14px;
-            flex-grow: 1;
-            max-width: 100px;
-        }
-
-        .time-inputs span {
-            flex-shrink: 0;
-            margin: 0 8px;
-            font-size: 14px;
-        }
-
-        input {
-            padding: 6px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
-        }
-
-        input:focus {
-            outline: none;
-            border-color: #3498db;
-        }
-        
-        /* Add styles for wheel scrollable inputs */
-        .date-input input,
-        .time-inputs input {
-            cursor: ns-resize;
-        }
-
-        .entry-actions {
-            display: flex;
-            align-items: center;
-            flex-shrink: 0;
-            gap: 4px;
-        }
-
-        .remove-btn, .add-inline-btn {
-            background-color: #e74c3c;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 28px;
-            height: 28px;
-            font-size: 14px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            margin: 0;
-        }
-
-        .add-inline-btn {
-            background-color: #3498db;
-        }
-
-        .insertion-indicator {
-            display: none; /* 非表示にする */
-        }
-        
-        .highlight-new-entry {
-            background-color: #ebf5fb; /* 薄い青色の背景 */
-            transition: background-color 0.8s ease-out;
-        }
-        
-        /* アニメーション用スタイル */
-        @keyframes highlightFade {
-            0% { background-color: #ebf5fb; }
-            100% { background-color: white; }
-        }
-        
-        .highlight-animation {
-            animation: highlightFade 0.8s ease-out forwards;
-        }
-
-        #addDateBtn {
-            background-color: #3498db;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 8px 16px;
-            font-size: 14px;
-            cursor: pointer;
-            display: block;
-            margin: 15px auto;
-        }
-
-        .results-container {
-            margin-top: 20px;
-            background-color: white;
-            border-radius: 6px;
+        .test-panel {
+            margin-bottom: 30px;
             padding: 15px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            border: 1px solid var(--border);
+            border-radius: 8px;
         }
 
-        h2 {
-            color: #2c3e50;
-            font-size: 18px;
-            margin-bottom: 10px;
-        }
-
-        #formattedResults {
-            background-color: #f5f5f5;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            padding: 12px;
-            min-height: 80px;
-            white-space: pre-wrap;
-            font-family: monospace;
+        .test-header {
+            display: flex;
+            align-items: center;
             margin-bottom: 15px;
         }
 
-        #copyBtn {
-            background-color: #2ecc71;
+        .test-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin: 0;
+            flex-grow: 1;
+        }
+
+        .status-badge {
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        .status-unknown {
+            background-color: #e8eaed;
+            color: #5f6368;
+        }
+
+        .status-supported {
+            background-color: rgba(15, 157, 88, 0.1);
+            color: var(--success);
+        }
+
+        .status-unsupported {
+            background-color: rgba(219, 68, 55, 0.1);
+            color: var(--error);
+        }
+
+        .status-partial {
+            background-color: rgba(244, 180, 0, 0.1);
+            color: var(--warning);
+        }
+
+        .test-content {
+            margin-bottom: 15px;
+        }
+
+        .logs {
+            background-color: #f1f3f4;
+            padding: 10px;
+            border-radius: 4px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+
+        .log-entry {
+            margin-bottom: 5px;
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .log-entry::before {
+            content: '>';
+            position: absolute;
+            left: 5px;
+            color: #5f6368;
+        }
+
+        .log-success {
+            color: var(--success);
+        }
+
+        .log-error {
+            color: var(--error);
+        }
+
+        .log-info {
+            color: var(--primary);
+        }
+
+        .log-warning {
+            color: var(--warning);
+        }
+
+        button {
+            background-color: var(--primary);
             color: white;
             border: none;
+            padding: 8px 16px;
             border-radius: 4px;
-            padding: 10px 20px;
-            font-size: 16px;
             cursor: pointer;
-            display: block;
-            margin: 0 auto;
+            font-weight: 500;
+            transition: background-color 0.2s;
+            margin-right: 8px;
+            margin-bottom: 8px;
         }
 
         button:hover {
-            opacity: 0.9;
+            background-color: #3367d6;
         }
-        
-        /* ツールチップ */
-        .tooltip {
-            position: relative;
+
+        button:disabled {
+            background-color: #c1c1c1;
+            cursor: not-allowed;
         }
-        
-        .tooltip:before {
-            content: attr(data-tooltip);
-            position: absolute;
-            bottom: 120%;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 5px 10px;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
+
+        .dropzone {
+            border: 2px dashed var(--border);
+            padding: 20px;
+            text-align: center;
             border-radius: 4px;
-            font-size: 12px;
-            white-space: nowrap;
-            opacity: 0;
-            visibility: hidden;
-            transition: opacity 0.2s, visibility 0.2s;
-            z-index: 10;
-        }
-        
-        .tooltip:hover:before {
-            opacity: 1;
-            visibility: visible;
-        }
-        
-        /* Flatpickrカスタマイズ */
-        .flatpickr-calendar {
-            font-family: 'Helvetica Neue', Arial, sans-serif;
-            box-shadow: 0 3px 15px rgba(0, 0, 0, 0.2);
-        }
-        
-        .flatpickr-day.selected {
-            background: #3498db;
-            border-color: #3498db;
-        }
-        
-        /* 時刻選択ドロップダウン用スタイル */
-        .time-dropdown {
-            position: absolute;
-            background-color: white;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            max-height: 200px;
-            overflow-y: auto;
-            z-index: 1000;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-            display: none;
-            min-width: 80px;
-        }
-        
-        .time-dropdown-item {
-            padding: 6px 10px;
-            cursor: pointer;
+            margin-bottom: 15px;
             transition: background-color 0.2s;
-            font-size: 13px;
-            text-align: left;
-            white-space: nowrap;
         }
-        
-        .time-dropdown-item:hover {
-            background-color: #f0f0f0;
+
+        .dropzone.active {
+            border-color: var(--primary);
+            background-color: rgba(66, 133, 244, 0.05);
         }
-        
-        .time-dropdown-item.selected {
-            background-color: #e6f3fa;
-            color: #3498db;
-            font-weight: bold;
+
+        textarea {
+            width: 100%;
+            height: 80px;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            resize: vertical;
+            font-family: inherit;
+            margin-bottom: 10px;
+        }
+
+        .summary {
+            margin-top: 30px;
+            padding: 15px;
+            background-color: var(--bg-light);
+            border-radius: 8px;
+        }
+
+        .summary h2 {
+            margin-top: 0;
+            color: var(--primary);
+            font-size: 18px;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 15px;
+            }
+            
+            .test-panel {
+                padding: 10px;
+            }
+            
+            button {
+                font-size: 13px;
+                padding: 6px 12px;
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>日程候補作成ツール</h1>
-        <div class="instructions">日付・時刻入力欄をクリックして選択、またはマウスホイールで調整できます <br>（Ctrlキー+ホイールで分単位調整）</div>
-        
-        <div id="dateEntries">
-            <!-- Date entries will be added here -->
+        <h1>ファイル・クリップボードAPI診断ツール</h1>
+        <p class="description">ブラウザ環境でのファイル操作とクリップボード機能の互換性をテストします</p>
+
+        <div class="test-panel" id="file-api-panel">
+            <div class="test-header">
+                <h2 class="test-title">File API テスト</h2>
+                <span class="status-badge status-unknown" id="file-api-status">未テスト</span>
+            </div>
+            <div class="test-content">
+                <p>File APIの基本機能をテストします。</p>
+                <button id="check-file-api">基本サポート確認</button>
+                <input type="file" id="file-input" style="display: none;">
+                <button id="select-file">ファイル選択</button>
+                <button id="read-file" disabled>ファイル読み込み</button>
+            </div>
+            <div class="logs" id="file-api-logs"></div>
         </div>
-        
-        <div id="emptyState" style="text-align: center; margin: 15px 0; display: none;">
-            <button id="addFirstDateBtn" class="add-inline-btn" style="width: 32px; height: 32px; font-size: 18px; margin: 0 auto;">+</button>
-            <p style="color: #7f8c8d; margin-top: 8px; font-size: 13px;">日程を追加</p>
+
+        <div class="test-panel" id="drag-drop-panel">
+            <div class="test-header">
+                <h2 class="test-title">ドラッグ＆ドロップ API テスト</h2>
+                <span class="status-badge status-unknown" id="drag-drop-status">未テスト</span>
+            </div>
+            <div class="test-content">
+                <p>ドラッグ＆ドロップ機能をテストします。</p>
+                <button id="check-drag-drop">基本サポート確認</button>
+                <div class="dropzone" id="drop-zone">
+                    ファイルをここにドラッグ＆ドロップしてください
+                </div>
+            </div>
+            <div class="logs" id="drag-drop-logs"></div>
         </div>
-        
-        <div class="results-container">
-            <h2>フォーマット済み日程</h2>
-            <div id="formattedResults"></div>
-            <button id="copyBtn">クリップボードにコピー</button>
+
+        <div class="test-panel" id="clipboard-panel">
+            <div class="test-header">
+                <h2 class="test-title">クリップボード API テスト</h2>
+                <span class="status-badge status-unknown" id="clipboard-status">未テスト</span>
+            </div>
+            <div class="test-content">
+                <p>クリップボードへの読み書き機能をテストします。</p>
+                <button id="check-clipboard-api">基本サポート確認</button>
+                <textarea id="clipboard-text" placeholder="クリップボードにコピーするテキストを入力"></textarea>
+                <button id="write-clipboard">クリップボードにコピー</button>
+                <button id="read-clipboard">クリップボードから読み込み</button>
+                <button id="read-clipboard-items">クリップボードアイテム読み込み</button>
+            </div>
+            <div class="logs" id="clipboard-logs"></div>
+        </div>
+
+        <div class="test-panel" id="blob-url-panel">
+            <div class="test-header">
+                <h2 class="test-title">Blob URL &amp; ダウンロード テスト</h2>
+                <span class="status-badge status-unknown" id="blob-url-status">未テスト</span>
+            </div>
+            <div class="test-content">
+                <p>BlobからURLを生成しダウンロード機能をテストします。</p>
+                <button id="check-blob-url">基本サポート確認</button>
+                <button id="create-text-file">テキストファイル作成</button>
+                <button id="download-blob" disabled>ファイルのダウンロード</button>
+                <a id="download-link" class="hidden"></a>
+            </div>
+            <div class="logs" id="blob-url-logs"></div>
+        </div>
+
+        <div class="summary" id="summary-panel">
+            <h2>テスト結果サマリー</h2>
+            <p>各APIのテスト結果をここに表示します。すべてのテストを実行してください。</p>
+            <div id="summary-content"></div>
         </div>
     </div>
 
-    <!-- 時刻選択ドロップダウン -->
-    <div id="timeDropdown" class="time-dropdown"></div>
-
     <script>
-        // Initialize when document is ready
-        document.addEventListener('DOMContentLoaded', function() {
-            // Add first date entry
-            addDateEntry();
+        // ヘルパー関数
+        function log(panelId, message, type = 'info') {
+            const logsContainer = document.getElementById(panelId + '-logs');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.textContent = message;
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        function updateStatus(panelId, status) {
+            const statusBadge = document.getElementById(panelId + '-status');
+            statusBadge.className = 'status-badge status-' + status;
             
-            // Setup empty state handler
-            setupEmptyState();
+            let statusText = '未テスト';
+            switch(status) {
+                case 'supported':
+                    statusText = 'サポート済み';
+                    break;
+                case 'unsupported':
+                    statusText = '未サポート';
+                    break;
+                case 'partial':
+                    statusText = '部分的にサポート';
+                    break;
+            }
             
-            // Add event listener to copy button
-            document.getElementById('copyBtn').addEventListener('click', copyToClipboard);
+            statusBadge.textContent = statusText;
+            updateSummary();
+        }
+
+        function updateSummary() {
+            const summary = document.getElementById('summary-content');
+            summary.innerHTML = '';
             
-            // グローバルクリックイベントリスナーを追加（ドロップダウン外をクリックで閉じる）
-            document.addEventListener('click', function(event) {
-                const dropdown = document.getElementById('timeDropdown');
-                if (dropdown.style.display === 'block') {
-                    const clickedElement = event.target;
-                    // 時刻入力フィールドかドロップダウン自体のクリックでなければ閉じる
-                    if (!clickedElement.classList.contains('start-time') && 
-                        !clickedElement.classList.contains('end-time') && 
-                        !dropdown.contains(clickedElement)) {
-                        closeTimeDropdown();
-                    }
+            const panels = ['file-api', 'drag-drop', 'clipboard', 'blob-url'];
+            const results = [];
+            
+            panels.forEach(panel => {
+                const status = document.getElementById(panel + '-status').className.split('status-')[1];
+                const name = document.querySelector(`#${panel}-panel .test-title`).textContent;
+                
+                let statusText = '未テスト';
+                let statusClass = 'unknown';
+                
+                switch(status) {
+                    case 'supported':
+                        statusText = 'サポート済み';
+                        statusClass = 'success';
+                        break;
+                    case 'unsupported':
+                        statusText = '未サポート';
+                        statusClass = 'error';
+                        break;
+                    case 'partial':
+                        statusText = '部分的にサポート';
+                        statusClass = 'warning';
+                        break;
+                    case 'unknown':
+                        statusText = '未テスト';
+                        statusClass = 'info';
+                        break;
                 }
+                
+                results.push(`<div><strong>${name}:</strong> <span class="log-${statusClass}">${statusText}</span></div>`);
             });
+            
+            summary.innerHTML = results.join('');
+        }
+
+        // File API テスト
+        document.getElementById('check-file-api').addEventListener('click', function() {
+            log('file-api', 'File API基本サポートをチェックしています...');
+            
+            if (window.File && window.FileReader && window.FileList && window.Blob) {
+                log('file-api', 'File APIがサポートされています', 'success');
+                updateStatus('file-api', 'supported');
+            } else {
+                log('file-api', 'File APIがサポートされていません', 'error');
+                updateStatus('file-api', 'unsupported');
+            }
+        });
+
+        document.getElementById('select-file').addEventListener('click', function() {
+            document.getElementById('file-input').click();
+        });
+
+        document.getElementById('file-input').addEventListener('change', function(e) {
+            const fileInput = e.target;
+            if (fileInput.files && fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                log('file-api', `ファイル選択: ${file.name} (${file.type}, ${file.size} バイト)`, 'success');
+                document.getElementById('read-file').disabled = false;
+            } else {
+                log('file-api', 'ファイルが選択されませんでした', 'warning');
+            }
+        });
+
+        document.getElementById('read-file').addEventListener('click', function() {
+            const fileInput = document.getElementById('file-input');
+            if (fileInput.files && fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                log('file-api', `ファイル読み込み中: ${file.name}...`);
+                
+                try {
+                    const reader = new FileReader();
+                    
+                    reader.onload = function(e) {
+                        const content = e.target.result;
+                        const preview = content.slice(0, 100) + (content.length > 100 ? '...' : '');
+                        log('file-api', `ファイル読み込み成功 (プレビュー): ${preview}`, 'success');
+                    };
+                    
+                    reader.onerror = function() {
+                        log('file-api', `ファイル読み込みエラー: ${reader.error}`, 'error');
+                    };
+                    
+                    if (file.type.startsWith('text/') || file.type === '') {
+                        reader.readAsText(file);
+                    } else {
+                        reader.readAsArrayBuffer(file);
+                        log('file-api', `バイナリファイルをArrayBufferとして読み込みます`);
+                    }
+                } catch (error) {
+                    log('file-api', `例外が発生しました: ${error.message}`, 'error');
+                    updateStatus('file-api', 'partial');
+                }
+            } else {
+                log('file-api', 'ファイルが選択されていません', 'warning');
+            }
+        });
+
+        // ドラッグ＆ドロップ API テスト
+        document.getElementById('check-drag-drop').addEventListener('click', function() {
+            log('drag-drop', 'ドラッグ＆ドロップAPIをチェックしています...');
+            
+            try {
+                const div = document.createElement('div');
+                
+                if ('draggable' in div && 'ondragstart' in div && 'ondrop' in div) {
+                    log('drag-drop', 'ドラッグ＆ドロップAPIがサポートされています', 'success');
+                    updateStatus('drag-drop', 'supported');
+                } else {
+                    log('drag-drop', 'ドラッグ＆ドロップAPIが完全にはサポートされていません', 'error');
+                    updateStatus('drag-drop', 'unsupported');
+                }
+            } catch (error) {
+                log('drag-drop', `例外が発生しました: ${error.message}`, 'error');
+                updateStatus('drag-drop', 'unsupported');
+            }
+        });
+
+        const dropZone = document.getElementById('drop-zone');
+        
+        dropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.add('active');
         });
         
-        // Setup empty state visibility and handlers
-        function setupEmptyState() {
-            const emptyState = document.getElementById('emptyState');
-            const dateEntries = document.getElementById('dateEntries');
+        dropZone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.remove('active');
+        });
+        
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            this.classList.remove('active');
             
-            // Check if there are any entries
-            function updateEmptyState() {
-                if (dateEntries.children.length === 0) {
-                    emptyState.style.display = 'block';
+            try {
+                const files = e.dataTransfer.files;
+                
+                if (files && files.length > 0) {
+                    log('drag-drop', `${files.length}個のファイルがドロップされました:`, 'success');
+                    
+                    for (let i = 0; i < files.length; i++) {
+                        const file = files[i];
+                        log('drag-drop', `${i + 1}. ${file.name} (${file.type}, ${file.size} バイト)`);
+                    }
+                    
+                    updateStatus('drag-drop', 'supported');
                 } else {
-                    emptyState.style.display = 'none';
+                    log('drag-drop', 'ファイルがドロップされませんでした', 'warning');
                 }
+            } catch (error) {
+                log('drag-drop', `例外が発生しました: ${error.message}`, 'error');
+                updateStatus('drag-drop', 'partial');
             }
-            
-            // Add event listener for the add first date button
-            document.getElementById('addFirstDateBtn').addEventListener('click', function() {
-                addDateEntry();
-                updateEmptyState();
-            });
-            
-            // Initial check
-            updateEmptyState();
-            
-            // Create a MutationObserver to watch for changes to the dateEntries div
-            const observer = new MutationObserver(updateEmptyState);
-            observer.observe(dateEntries, { childList: true });
-        }
+        });
 
-        // Function to add a new date entry
-        function addDateEntry(afterElement = null) {
-            const dateEntries = document.getElementById('dateEntries');
+        // クリップボード API テスト
+        document.getElementById('check-clipboard-api').addEventListener('click', function() {
+            log('clipboard', 'クリップボードAPIをチェックしています...');
             
-            // 先に既存のハイライトをすべて消す
-            document.querySelectorAll('.highlight-new-entry').forEach(el => {
-                el.classList.remove('highlight-new-entry');
-            });
-            
-            const entryDiv = document.createElement('div');
-            entryDiv.className = 'date-entry highlight-new-entry';
-            
-            entryDiv.innerHTML = `
-                <div class="date-input">
-                    <input type="text" class="date" placeholder="日付">
-                    <div class="day-of-week"></div>
-                </div>
-                <div class="time-inputs">
-                    <input type="text" class="start-time" placeholder="開始">
-                    <span>～</span>
-                    <input type="text" class="end-time" placeholder="終了">
-                </div>
-                <div class="entry-actions">
-                    <button class="add-inline-btn tooltip" data-tooltip="この後に日程を追加">+</button>
-                    <button class="remove-btn tooltip" data-tooltip="この日程を削除">×</button>
-                </div>
-            `;
-            
-            // Insert the new entry at the specified position or at the end
-            if (afterElement) {
-                dateEntries.insertBefore(entryDiv, afterElement.nextSibling);
-            } else {
-                dateEntries.appendChild(entryDiv);
-            }
-            
-            // アニメーションを適用するためのタイミング調整
-            requestAnimationFrame(() => {
-                // 別のクラスに変更しアニメーションを適用
-                setTimeout(() => {
-                    entryDiv.classList.remove('highlight-new-entry');
-                    entryDiv.classList.add('highlight-animation');
+            try {
+                if (navigator.clipboard) {
+                    log('clipboard', 'クリップボードAPIがサポートされています', 'success');
                     
-                    // アニメーション完了後にクラスを削除
-                    setTimeout(() => {
-                        entryDiv.classList.remove('highlight-animation');
-                    }, 800);
-                }, 10);
-            });
-            
-            
-            // Add event listeners to the new inputs
-            const dateInput = entryDiv.querySelector('.date');
-            const dayOfWeekElement = entryDiv.querySelector('.day-of-week');
-            const startTimeInput = entryDiv.querySelector('.start-time');
-            const endTimeInput = entryDiv.querySelector('.end-time');
-            const removeBtn = entryDiv.querySelector('.remove-btn');
-            const addInlineBtn = entryDiv.querySelector('.add-inline-btn');
-            
-            // Get values from the reference entry if provided, otherwise try to get from the last entry
-            let referenceEntry = afterElement;
-            
-            if (!referenceEntry && dateEntries.children.length > 1) {
-                // If no reference entry is provided and there are existing entries,
-                // use the last entry as reference
-                referenceEntry = dateEntries.children[dateEntries.children.length - 2];
-            }
-            
-            if (referenceEntry) {
-                const refDateInput = referenceEntry.querySelector('.date');
-                const refDayOfWeek = referenceEntry.querySelector('.day-of-week');
-                const refStartTime = referenceEntry.querySelector('.start-time');
-                const refEndTime = referenceEntry.querySelector('.end-time');
-                
-                // Copy values from the reference entry
-                if (refDateInput.value) {
-                    // Copy the date exactly as it is
-                    dateInput.value = refDateInput.value;
-                    dayOfWeekElement.textContent = refDayOfWeek.textContent;
-                }
-                
-                if (refStartTime.value) {
-                    startTimeInput.value = refStartTime.value;
-                }
-                
-                if (refEndTime.value) {
-                    endTimeInput.value = refEndTime.value;
-                }
-            }
-            
-            // 新しい日付ピッカーを初期化
-            initializeDatePicker(dateInput, dayOfWeekElement);
-            
-            // マウスホイールイベントも追加
-            dateInput.addEventListener('wheel', handleDateWheel);
-            
-            // 開始時刻の入力イベント
-            startTimeInput.addEventListener('blur', handleStartTimeInput);
-            startTimeInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    handleStartTimeInput.call(this);
-                    closeTimeDropdown();
-                    e.preventDefault(); // フォーム送信防止
-                }
-            });
-            startTimeInput.addEventListener('wheel', handleStartTimeWheel);
-            // クリックイベントを追加（時刻選択ドロップダウン用）
-            startTimeInput.addEventListener('click', function() {
-                showTimeDropdown(this, true);
-            });
-            
-            // 終了時刻の入力イベント
-            endTimeInput.addEventListener('blur', handleEndTimeInput);
-            endTimeInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    handleEndTimeInput.call(this);
-                    closeTimeDropdown();
-                    e.preventDefault(); // フォーム送信防止
-                }
-            });
-            endTimeInput.addEventListener('wheel', handleEndTimeWheel);
-            // クリックイベントを追加（時刻選択ドロップダウン用）
-            endTimeInput.addEventListener('click', function() {
-                showTimeDropdown(this, false);
-            });
-            
-            removeBtn.addEventListener('click', function() {
-                dateEntries.removeChild(entryDiv);
-                updateFormattedResults();
-                
-                // Check if we need to show the empty state
-                if (dateEntries.children.length === 0) {
-                    document.getElementById('emptyState').style.display = 'block';
-                }
-            });
-            
-            // Add event listener for the new inline add button
-            addInlineBtn.addEventListener('click', function() {
-                addDateEntry(entryDiv);
-            });
-            
-            // Update formatted results since we've added new entry with values
-            updateFormattedResults();
-        }
-        
-        // 日付ピッカーを初期化する関数
-        function initializeDatePicker(dateInput, dayOfWeekElement) {
-            const fp = flatpickr(dateInput, {
-                dateFormat: "Y/m/d",
-                locale: "ja",
-                disableMobile: true,
-                allowInput: true,
-                position: "below", // カレンダーを入力欄の下に表示
-                positionElement: dateInput, // ポジション計算の基準要素を指定
-                static: true, // 必要に応じて静的配置
-                onChange: function(selectedDates, dateStr, instance) {
-                    if (selectedDates.length > 0) {
-                        const date = selectedDates[0];
-                        const dayOfWeek = getDayOfWeekJapanese(date);
-                        dayOfWeekElement.textContent = `(${dayOfWeek})`;
-                        updateFormattedResults();
-                    }
-                }
-            });
-            
-            // 今日の日付をセットする（選択されていない場合）
-            if (!dateInput.value) {
-                const dateEntries = document.querySelectorAll('.date-entry');
-                let entryIndex = -1;
-                let currentEntry = dateInput.closest('.date-entry');
-                
-                for (let i = 0; i < dateEntries.length; i++) {
-                    if (dateEntries[i] === currentEntry) {
-                        entryIndex = i;
-                        break;
-                    }
-                }
-                
-                let dateToUse = new Date();
-                
-                if (entryIndex > 0) {
-                    const previousDateInput = dateEntries[entryIndex - 1].querySelector('.date');
-                    if (previousDateInput && previousDateInput.value) {
-                        const previousDate = parseFlexibleDate(previousDateInput.value);
-                        if (previousDate && previousDate > dateToUse) {
-                            dateToUse = previousDate;
-                        }
-                    }
-                }
-                
-                fp.setDate(dateToUse);
-                const dayOfWeek = getDayOfWeekJapanese(dateToUse);
-                dayOfWeekElement.textContent = `(${dayOfWeek})`;
-            }
-        }
-        
-                    // 時間差を「○時間」または「○時間○分」の形式でフォーマットする関数
-        function formatTimeDifference(startTime, endTime) {
-            if (!startTime || !endTime) return '';
-            
-            // 時間差を分単位で計算
-            const diffMs = endTime.getTime() - startTime.getTime();
-            const diffMinutes = Math.round(diffMs / (1000 * 60));
-            
-            if (diffMinutes <= 0) return '';
-            
-            const hours = Math.floor(diffMinutes / 60);
-            const minutes = diffMinutes % 60;
-            
-            if (minutes === 0) {
-                return `(${hours}時間)`;
-            } else {
-                return `(${hours}時間${minutes}分)`;
-            }
-        }
-        
-        // 時刻選択ドロップダウンを表示する関数
-        function showTimeDropdown(inputElement, isStartTime) {
-            // 既存のドロップダウンを閉じる
-            closeTimeDropdown();
-            
-            const dropdown = document.getElementById('timeDropdown');
-            
-            // 入力値から適切な時刻パターンを取得
-            let baseMinute = 0;
-            let currentValue = inputElement.value.trim();
-            
-            if (currentValue) {
-                const parsedTime = parseFlexibleTime(currentValue);
-                if (parsedTime) {
-                    baseMinute = parsedTime.getMinutes() % 30;
-                }
-            }
-            
-            // ドロップダウンの位置を設定
-            const rect = inputElement.getBoundingClientRect();
-            dropdown.style.top = (rect.bottom + window.scrollY) + 'px';
-            dropdown.style.left = (rect.left + window.scrollX) + 'px';
-            dropdown.style.width = isStartTime ? rect.width + 'px' : '150px'; // 終了時刻の場合は幅を広げる
-            
-            // ドロップダウンの中身をクリア
-            dropdown.innerHTML = '';
-            
-            // デフォルト時刻（未入力時）
-            let defaultHour = 8;
-            let defaultMinute = 0;
-            
-            // 現在入力されている値を取得
-            if (currentValue) {
-                const parsedTime = parseFlexibleTime(currentValue);
-                if (parsedTime) {
-                    defaultHour = parsedTime.getHours();
-                    defaultMinute = parsedTime.getMinutes();
-                }
-            }
-            
-            // 最小時刻の設定（終了時刻の場合は開始時刻以降）
-            let startTime = null;
-            if (!isStartTime) {
-                const startTimeInput = inputElement.closest('.date-entry').querySelector('.start-time');
-                if (startTimeInput && startTimeInput.value) {
-                    startTime = parseFlexibleTime(startTimeInput.value);
-                }
-            }
-            
-            // 30分刻みの時刻パターンを生成
-            let timePattern1 = baseMinute;
-            let timePattern2 = (baseMinute + 30) % 60;
-            
-            // 選択された時刻を記憶するための変数
-            let selectedTime = null;
-            
-            // 時刻選択肢を生成
-            for (let hour = 0; hour < 24; hour++) {
-                for (let minutePattern of [timePattern1, timePattern2].sort()) {
-                    // 現在の時刻を生成
-                    const currentTime = new Date();
-                    currentTime.setHours(hour, minutePattern, 0, 0);
+                    let writeText = false;
+                    let readText = false;
+                    let writeItem = false;
+                    let readItem = false;
                     
-                    // 開始時刻より前の時間は終了時刻の選択肢から除外
-                    if (!isStartTime && startTime) {
-                        if (currentTime <= startTime) {
-                            continue;
-                        }
-                    }
-                    
-                    const formattedHour = hour.toString().padStart(2, '0');
-                    const formattedMinute = minutePattern.toString().padStart(2, '0');
-                    const timeString = `${formattedHour}:${formattedMinute}`;
-                    
-                    const timeItem = document.createElement('div');
-                    timeItem.className = 'time-dropdown-item';
-                    
-                    // 終了時刻の場合、開始時刻からの経過時間も表示
-                    if (!isStartTime && startTime) {
-                        const timeDiff = formatTimeDifference(startTime, currentTime);
-                        timeItem.textContent = `${timeString} ${timeDiff}`;
+                    if (navigator.clipboard.writeText) {
+                        log('clipboard', 'writeText API: サポート済み', 'success');
+                        writeText = true;
                     } else {
-                        timeItem.textContent = timeString;
+                        log('clipboard', 'writeText API: 未サポート', 'error');
                     }
                     
-                    // デフォルト選択の設定
-                    if (hour === defaultHour && minutePattern === defaultMinute) {
-                        timeItem.classList.add('selected');
-                        selectedTime = timeString;
+                    if (navigator.clipboard.readText) {
+                        log('clipboard', 'readText API: サポート済み', 'success');
+                        readText = true;
+                    } else {
+                        log('clipboard', 'readText API: 未サポート', 'error');
                     }
                     
-                    // クリックイベントを追加
-                    timeItem.addEventListener('click', function() {
-                        // 時刻部分のみを取得（経過時間部分を除く）
-                        const selectedTime = this.textContent.split(' ')[0];
-                        inputElement.value = selectedTime;
-                        
-                        // 連動処理
-                        if (isStartTime) {
-                            handleStartTimeInput.call(inputElement);
-                        } else {
-                            handleEndTimeInput.call(inputElement);
-                        }
-                        
-                        closeTimeDropdown();
-                    });
+                    if (navigator.clipboard.write) {
+                        log('clipboard', 'write API (複合データ): サポート済み', 'success');
+                        writeItem = true;
+                    } else {
+                        log('clipboard', 'write API (複合データ): 未サポート', 'error');
+                    }
                     
-                    dropdown.appendChild(timeItem);
-                }
-            }
-            
-            // ドロップダウンを表示
-            dropdown.style.display = 'block';
-            
-            // スクロール位置を選択項目に合わせる
-            if (selectedTime) {
-                const selectedElement = Array.from(dropdown.querySelectorAll('.time-dropdown-item')).find(el => el.textContent.startsWith(selectedTime));
-                if (selectedElement) {
-                    setTimeout(() => {
-                        selectedElement.scrollIntoView({ block: 'center' });
-                    }, 0);
-                }
-            } else {
-                // デフォルトで8:00または開始時刻+1時間を表示位置に
-                let defaultTimeString = "08:00";
-                if (!isStartTime && startTime) {
-                    const endTime = new Date(startTime);
-                    endTime.setHours(endTime.getHours() + 1);
-                    const h = endTime.getHours().toString().padStart(2, '0');
-                    const m = endTime.getMinutes().toString().padStart(2, '0');
-                    defaultTimeString = `${h}:${m}`;
-                }
-                
-                const defaultElement = Array.from(dropdown.querySelectorAll('.time-dropdown-item')).find(el => el.textContent.startsWith(defaultTimeString));
-                if (defaultElement) {
-                    setTimeout(() => {
-                        defaultElement.scrollIntoView({ block: 'center' });
-                    }, 0);
-                }
-            }
-        }
-        
-        // 時刻選択ドロップダウンを閉じる関数
-        function closeTimeDropdown() {
-            const dropdown = document.getElementById('timeDropdown');
-            dropdown.style.display = 'none';
-        }
-        
-        // Handling date wheel event
-        function handleDateWheel(event) {
-            event.preventDefault();
-            
-            const dateInput = this;
-            let dateValue = dateInput.value.trim();
-            
-            // If no date is entered, use today's date or the date from the previous entry
-            if (!dateValue) {
-                // Get today's date
-                const today = new Date();
-                
-                // Check for previous entry's date
-                const dateEntries = document.querySelectorAll('.date-entry');
-                let entryIndex = -1;
-                let currentEntry = dateInput.closest('.date-entry');
-                
-                for (let i = 0; i < dateEntries.length; i++) {
-                    if (dateEntries[i] === currentEntry) {
-                        entryIndex = i;
-                        break;
+                    if (navigator.clipboard.read) {
+                        log('clipboard', 'read API (複合データ): サポート済み', 'success');
+                        readItem = true;
+                    } else {
+                        log('clipboard', 'read API (複合データ): 未サポート', 'error');
                     }
-                }
-                
-                let previousDate = null;
-                if (entryIndex > 0) {
-                    const previousDateInput = dateEntries[entryIndex - 1].querySelector('.date');
-                    if (previousDateInput && previousDateInput.value) {
-                        previousDate = parseFlexibleDate(previousDateInput.value);
+                    
+                    if (writeText && readText && writeItem && readItem) {
+                        updateStatus('clipboard', 'supported');
+                    } else if (!writeText && !readText && !writeItem && !readItem) {
+                        updateStatus('clipboard', 'unsupported');
+                    } else {
+                        updateStatus('clipboard', 'partial');
                     }
-                }
-                
-                // Use the later of today or the previous entry's date
-                let dateToUse = today;
-                if (previousDate && previousDate > today) {
-                    dateToUse = previousDate;
-                }
-                
-                // Format as YYYY/MM/DD
-                const year = dateToUse.getFullYear();
-                const month = (dateToUse.getMonth() + 1).toString().padStart(2, '0');
-                const day = dateToUse.getDate().toString().padStart(2, '0');
-                dateInput.value = `${year}/${month}/${day}`;
-                
-                // Update day of week
-                const dayOfWeekElement = dateInput.closest('.date-entry').querySelector('.day-of-week');
-                const dayOfWeek = getDayOfWeekJapanese(dateToUse);
-                dayOfWeekElement.textContent = `(${dayOfWeek})`;
-                
-                // Update formatted results
-                updateFormattedResults();
-                
-                // Return early without adjusting the date
-                return;
-            }
-            
-            // Parse the current date
-            const currentDate = parseFlexibleDate(dateValue);
-            if (!currentDate) return;
-            
-            // Adjust the date based on wheel direction
-            if (event.deltaY < 0) {
-                // Scroll up - decrement date by 1 day
-                currentDate.setDate(currentDate.getDate() - 1);
-            } else {
-                // Scroll down - increment date by 1 day
-                currentDate.setDate(currentDate.getDate() + 1);
-            }
-            
-            // Format the new date as YYYY/MM/DD
-            const year = currentDate.getFullYear();
-            const month = (currentDate.getMonth() + 1).toString().padStart(2, '0');
-            const day = currentDate.getDate().toString().padStart(2, '0');
-            dateInput.value = `${year}/${month}/${day}`;
-            
-            // Update day of week
-            const dayOfWeekElement = dateInput.closest('.date-entry').querySelector('.day-of-week');
-            const dayOfWeek = getDayOfWeekJapanese(currentDate);
-            dayOfWeekElement.textContent = `(${dayOfWeek})`;
-            
-            // Update flatpickr instance
-            const flatpickrInstance = dateInput._flatpickr;
-            if (flatpickrInstance) {
-                flatpickrInstance.setDate(currentDate, true);
-            }
-            
-            // Update formatted results
-            updateFormattedResults();
-        }
-
-        // Convert full-width characters to half-width
-        function convertFullWidthToHalfWidth(str) {
-            return str.replace(/[！-～]/g, function(s) {
-                return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
-            }).replace(/　/g, ' ');
-        }
-
-        // Get Japanese day of week
-        function getDayOfWeekJapanese(date) {
-            const daysJp = ['日', '月', '火', '水', '木', '金', '土'];
-            return daysJp[date.getDay()];
-        }
-
-        // Parse date with flexible formats
-        function parseFlexibleDate(dateStr) {
-            // Convert full-width characters to half-width
-            dateStr = convertFullWidthToHalfWidth(dateStr);
-            
-            // Current date for reference
-            const now = new Date();
-            const currentYear = now.getFullYear();
-            let year = currentYear;
-            let month, day;
-            
-            // Try different formats
-            
-            // Format: YYYYMMDD (e.g., 20250408)
-            if (/^\d{8}$/.test(dateStr)) {
-                year = parseInt(dateStr.substring(0, 4));
-                month = parseInt(dateStr.substring(4, 6));
-                day = parseInt(dateStr.substring(6, 8));
-            }
-            // Format: YYYYMM (e.g., 202504)
-            else if (/^\d{6}$/.test(dateStr)) {
-                year = parseInt(dateStr.substring(0, 4));
-                month = parseInt(dateStr.substring(4, 6));
-                day = 1;
-            }
-            // Format: MMDD (e.g., 0408)
-            else if (/^\d{4}$/.test(dateStr)) {
-                month = parseInt(dateStr.substring(0, 2));
-                day = parseInt(dateStr.substring(2, 4));
-            }
-            // Format: MM/DD or M/D (e.g., 04/08 or 4/8)
-            else if (/^\d{1,2}\/\d{1,2}$/.test(dateStr)) {
-                const parts = dateStr.split('/');
-                month = parseInt(parts[0]);
-                day = parseInt(parts[1]);
-            }
-            // Format: M or MM (e.g., 4 or 04 for April 1st)
-            else if (/^\d{1,2}$/.test(dateStr)) {
-                month = parseInt(dateStr);
-                day = 1;
-            }
-            // Format: YYYY/MM/DD or YYYY/M/D
-            else if (/^\d{4}\/\d{1,2}\/\d{1,2}$/.test(dateStr)) {
-                const parts = dateStr.split('/');
-                year = parseInt(parts[0]);
-                month = parseInt(parts[1]);
-                day = parseInt(parts[2]);
-            }
-            // Format: MM-DD or M-D
-            else if (/^\d{1,2}-\d{1,2}$/.test(dateStr)) {
-                const parts = dateStr.split('-');
-                month = parseInt(parts[0]);
-                day = parseInt(parts[1]);
-            }
-            // Format: YYYYM (e.g., 20254 for 2025 April)
-            else if (/^\d{5}$/.test(dateStr)) {
-                year = parseInt(dateStr.substring(0, 4));
-                month = parseInt(dateStr.substring(4, 5));
-                day = 1;
-            }
-            else {
-                return null; // Couldn't parse the date
-            }
-            
-            // Validate month and day
-            if (month < 1 || month > 12 || day < 1 || day > 31) {
-                return null;
-            }
-            
-            // Create the date object
-            const inputDate = new Date(year, month - 1, day);
-            
-            // For formats that don't explicitly include the year
-            const yearNotExplicit = !/^\d{4}/.test(dateStr) && 
-                                (!dateStr.includes('/') || 
-                                (dateStr.includes('/') && dateStr.split('/').length === 2));
-            
-            if (yearNotExplicit) {
-                const today = new Date();
-                const thisYear = today.getFullYear();
-                const nextYear = thisYear + 1;
-                
-                // Create a date object with current year for comparison
-                const dateWithCurrentYear = new Date(thisYear, month - 1, day);
-                const dec31ThisYear = new Date(thisYear, 11, 31);
-                
-                if (dateWithCurrentYear >= today && dateWithCurrentYear <= dec31ThisYear) {
-                    // Date is between today and Dec 31 of current year
-                    inputDate.setFullYear(thisYear);
                 } else {
-                    // Date is before today or after Dec 31 of current year
-                    inputDate.setFullYear(nextYear);
+                    log('clipboard', 'クリップボードAPIがサポートされていません', 'error');
+                    updateStatus('clipboard', 'unsupported');
                 }
+            } catch (error) {
+                log('clipboard', `例外が発生しました: ${error.message}`, 'error');
+                updateStatus('clipboard', 'unsupported');
             }
-            
-            return inputDate;
-        }
+        });
 
-        // Handle start time input
-        function handleStartTimeInput() {
-            const startTimeInput = this;
-            const startTimeValue = startTimeInput.value.trim();
+        document.getElementById('write-clipboard').addEventListener('click', function() {
+            const text = document.getElementById('clipboard-text').value;
             
-            if (!startTimeValue) return;
-            
-            const parsedTime = parseFlexibleTime(startTimeValue);
-            
-            if (parsedTime) {
-                // Format time as HH:MM
-                const hours = parsedTime.getHours().toString().padStart(2, '0');
-                const minutes = parsedTime.getMinutes().toString().padStart(2, '0');
-                startTimeInput.value = `${hours}:${minutes}`;
-                
-                // Get end time input element
-                const endTimeInput = startTimeInput.closest('.date-entry').querySelector('.end-time');
-                const endTimeValue = endTimeInput.value.trim();
-                
-                // Calculate new end time based on start time
-                let endTime = new Date(parsedTime);
-                // Default to 1 hour later if no end time is specified
-                endTime.setHours(endTime.getHours() + 1);
-                
-                // If end time exists, try to maintain the time difference if possible
-                if (endTimeValue) {
-                    const currentEndTime = parseFlexibleTime(endTimeValue);
-                    if (currentEndTime) {
-                        // Calculate time difference in minutes
-                        const diffMinutes = Math.round((currentEndTime - parsedTime) / (1000 * 60));
-                        
-                        if (diffMinutes > 0) {
-                            // Maintain the time difference
-                            endTime = new Date(parsedTime);
-                            endTime.setMinutes(endTime.getMinutes() + diffMinutes);
-                        }
-                    }
-                }
-                
-                // Ensure end time minutes follow the same pattern as start time
-                const startMinutePattern = parsedTime.getMinutes() % 30;
-                // Adjust end time minutes to match start time pattern
-                const adjustedEndMinutes = Math.floor(endTime.getMinutes() / 30) * 30 + startMinutePattern;
-                endTime.setMinutes(adjustedEndMinutes);
-                
-                // If adjusted end time is before or equal to start time, add 30 minutes
-                if (endTime <= parsedTime) {
-                    endTime.setMinutes(endTime.getMinutes() + 30);
-                }
-                
-                // Update end time value
-                const endHours = endTime.getHours().toString().padStart(2, '0');
-                const endMinutes = endTime.getMinutes().toString().padStart(2, '0');
-                endTimeInput.value = `${endHours}:${endMinutes}`;
+            if (!text) {
+                log('clipboard', 'クリップボードにコピーするテキストを入力してください', 'warning');
+                return;
             }
             
-            updateFormattedResults();
-        }
-
-        // Handle end time input
-        function handleEndTimeInput() {
-            const endTimeInput = this;
-            const endTimeValue = endTimeInput.value.trim();
+            log('clipboard', `テキストをクリップボードにコピーしています: ${text}`);
             
-            if (!endTimeValue) return;
-            
-            const parsedTime = parseFlexibleTime(endTimeValue);
-            
-            if (parsedTime) {
-                // Get start time input element
-                const startTimeInput = endTimeInput.closest('.date-entry').querySelector('.start-time');
-                const startTimeValue = startTimeInput.value.trim();
-                
-                // If start time exists, ensure end time is after start time
-                if (startTimeValue) {
-                    const startTime = parseFlexibleTime(startTimeValue);
-                    if (startTime && parsedTime <= startTime) {
-                        // End time is before or equal to start time, adjust it to 30 minutes after start time
-                        const newEndTime = new Date(startTime);
-                        newEndTime.setMinutes(newEndTime.getMinutes() + 30);
-                        
-                        // Update parsedTime
-                        parsedTime.setHours(newEndTime.getHours());
-                        parsedTime.setMinutes(newEndTime.getMinutes());
-                    }
-                    
-                    // 手入力時には分パターンの強制調整は行わない
-                    // ただし、開始時刻より前になる場合のみ調整
-                    if (parsedTime <= startTime) {
-                        parsedTime.setMinutes(parsedTime.getMinutes() + 30);
-                    }
-                }
-                
-                // Format time as HH:MM
-                const hours = parsedTime.getHours().toString().padStart(2, '0');
-                const minutes = parsedTime.getMinutes().toString().padStart(2, '0');
-                endTimeInput.value = `${hours}:${minutes}`;
-            }
-            
-            updateFormattedResults();
-        }
-
-        // Parse time with flexible formats
-        function parseFlexibleTime(timeStr) {
-            // Convert full-width characters to half-width
-            timeStr = convertFullWidthToHalfWidth(timeStr);
-            
-            let hours, minutes = 0;
-            
-            // Try different formats
-            
-            // Format: HH:MM or HH.MM (e.g., 14:30 or 14.30)
-            if (/^\d{1,2}[:\.]\d{1,2}$/.test(timeStr)) {
-                const parts = timeStr.split(/[:\.]/);
-                hours = parseInt(parts[0]);
-                minutes = parseInt(parts[1]);
-            }
-            // Format: HHMM (e.g., 1430)
-            else if (/^\d{3,4}$/.test(timeStr)) {
-                if (timeStr.length === 3) {
-                    // e.g., 930 -> 9:30
-                    hours = parseInt(timeStr.substring(0, 1));
-                    minutes = parseInt(timeStr.substring(1, 3));
+            try {
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text)
+                        .then(() => {
+                            log('clipboard', 'テキストがクリップボードにコピーされました', 'success');
+                        })
+                        .catch(err => {
+                            log('clipboard', `クリップボードへのコピーに失敗しました: ${err}`, 'error');
+                        });
                 } else {
-                    // e.g., 1430 -> 14:30
-                    hours = parseInt(timeStr.substring(0, 2));
-                    minutes = parseInt(timeStr.substring(2, 4));
-                }
-            }
-            // Format: H or HH (e.g., 9 or 14)
-            else if (/^\d{1,2}$/.test(timeStr)) {
-                hours = parseInt(timeStr);
-                minutes = 0;
-            }
-            else {
-                return null; // Couldn't parse the time
-            }
-            
-            // Validate hours and minutes
-            if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-                return null;
-            }
-            
-            const now = new Date();
-            now.setHours(hours, minutes, 0, 0);
-            return now;
-        }
-
-        // Handling start time wheel event
-        function handleStartTimeWheel(event) {
-            event.preventDefault();
-            
-            const startTimeInput = this;
-            let startTimeValue = startTimeInput.value.trim();
-            const endTimeInput = startTimeInput.closest('.date-entry').querySelector('.end-time');
-            let endTimeValue = endTimeInput.value.trim();
-            
-            // If no start time is entered, use 8:00 or the previous entry's start time
-            if (!startTimeValue) {
-                // Default start time is 8:00
-                let defaultTime = new Date();
-                defaultTime.setHours(8, 0, 0, 0);
-                
-                // Check for previous entry's start time
-                const dateEntries = document.querySelectorAll('.date-entry');
-                let entryIndex = -1;
-                let currentEntry = startTimeInput.closest('.date-entry');
-                
-                for (let i = 0; i < dateEntries.length; i++) {
-                    if (dateEntries[i] === currentEntry) {
-                        entryIndex = i;
-                        break;
-                    }
-                }
-                
-                let previousStartTime = null;
-                if (entryIndex > 0) {
-                    const previousStartTimeInput = dateEntries[entryIndex - 1].querySelector('.start-time');
-                    if (previousStartTimeInput && previousStartTimeInput.value) {
-                        previousStartTime = parseFlexibleTime(previousStartTimeInput.value);
-                    }
-                }
-                
-                // Use the later of 8:00 or the previous entry's start time
-                let timeToUse = defaultTime;
-                if (previousStartTime && previousStartTime > defaultTime) {
-                    timeToUse = previousStartTime;
-                }
-                
-                // Format as HH:MM
-                const hours = timeToUse.getHours().toString().padStart(2, '0');
-                const minutes = timeToUse.getMinutes().toString().padStart(2, '0');
-                startTimeInput.value = `${hours}:${minutes}`;
-                
-                // Set end time to be 1 hour later if not already set
-                if (!endTimeValue) {
-                    const endTime = new Date(timeToUse);
-                    endTime.setHours(endTime.getHours() + 1);
-                    const endHours = endTime.getHours().toString().padStart(2, '0');
-                    const endMinutes = endTime.getMinutes().toString().padStart(2, '0');
-                    endTimeInput.value = `${endHours}:${endMinutes}`;
-                }
-                
-                // Update formatted results
-                updateFormattedResults();
-                
-                // Return early without adjusting the time
-                return;
-            }
-            
-            // Parse the current times
-            const currentStartTime = parseFlexibleTime(startTimeValue);
-            if (!currentStartTime) return;
-            
-            let currentEndTime = null;
-            if (endTimeValue) {
-                currentEndTime = parseFlexibleTime(endTimeValue);
-            }
-            
-            // Calculate time difference if end time exists
-            let timeDiff = 0;
-            if (currentEndTime) {
-                timeDiff = currentEndTime.getTime() - currentStartTime.getTime();
-            }
-            
-            // Determine the time adjustment increment based on Ctrl key state
-            const timeIncrement = event.ctrlKey ? 1 : 30; // 1分単位または30分単位
-            
-            // Adjust the start time based on wheel direction
-            if (event.deltaY < 0) {
-                // Scroll up - decrement time by increment amount
-                currentStartTime.setMinutes(currentStartTime.getMinutes() - timeIncrement);
-            } else {
-                // Scroll down - increment time by increment amount
-                currentStartTime.setMinutes(currentStartTime.getMinutes() + timeIncrement);
-            }
-            
-            // Format the new start time as HH:MM
-            const startHours = currentStartTime.getHours().toString().padStart(2, '0');
-            const startMinutes = currentStartTime.getMinutes().toString().padStart(2, '0');
-            startTimeInput.value = `${startHours}:${startMinutes}`;
-            
-            // Adjust end time to maintain the same time difference
-            if (currentEndTime) {
-                const newEndTime = new Date(currentStartTime.getTime() + timeDiff);
-                const endHours = newEndTime.getHours().toString().padStart(2, '0');
-                const endMinutes = newEndTime.getMinutes().toString().padStart(2, '0');
-                endTimeInput.value = `${endHours}:${endMinutes}`;
-            }
-            
-            // Update formatted results
-            updateFormattedResults();
-        }
-        
-        // Handling end time wheel event
-        function handleEndTimeWheel(event) {
-            event.preventDefault();
-            
-            const endTimeInput = this;
-            let endTimeValue = endTimeInput.value.trim();
-            const startTimeInput = endTimeInput.closest('.date-entry').querySelector('.start-time');
-            let startTimeValue = startTimeInput.value.trim();
-            
-            // If no start time is entered, set default start time
-            if (!startTimeValue) {
-                // Default start time is 8:00
-                let defaultTime = new Date();
-                defaultTime.setHours(8, 0, 0, 0);
-                
-                // Check for previous entry's start time
-                const dateEntries = document.querySelectorAll('.date-entry');
-                let entryIndex = -1;
-                let currentEntry = endTimeInput.closest('.date-entry');
-                
-                for (let i = 0; i < dateEntries.length; i++) {
-                    if (dateEntries[i] === currentEntry) {
-                        entryIndex = i;
-                        break;
-                    }
-                }
-                
-                let previousStartTime = null;
-                if (entryIndex > 0) {
-                    const previousStartTimeInput = dateEntries[entryIndex - 1].querySelector('.start-time');
-                    if (previousStartTimeInput && previousStartTimeInput.value) {
-                        previousStartTime = parseFlexibleTime(previousStartTimeInput.value);
-                    }
-                }
-                
-                // Use the later of 8:00 or the previous entry's start time
-                let timeToUse = defaultTime;
-                if (previousStartTime && previousStartTime > defaultTime) {
-                    timeToUse = previousStartTime;
-                }
-                
-                // Format as HH:MM
-                const hours = timeToUse.getHours().toString().padStart(2, '0');
-                const minutes = timeToUse.getMinutes().toString().padStart(2, '0');
-                startTimeInput.value = `${hours}:${minutes}`;
-                startTimeValue = startTimeInput.value;
-                
-                // If end time is also not set, set it to 1 hour later
-                if (!endTimeValue) {
-                    const endTime = new Date(timeToUse);
-                    endTime.setHours(endTime.getHours() + 1);
-                    const endHours = endTime.getHours().toString().padStart(2, '0');
-                    const endMinutes = endTime.getMinutes().toString().padStart(2, '0');
-                    endTimeInput.value = `${endHours}:${endMinutes}`;
+                    // フォールバック方法（非推奨だが互換性のために）
+                    const textarea = document.createElement('textarea');
+                    textarea.value = text;
+                    textarea.style.position = 'fixed';
+                    document.body.appendChild(textarea);
+                    textarea.select();
                     
-                    // Update formatted results
-                    updateFormattedResults();
-                    
-                    // Return early without adjusting the time
-                    return;
-                }
-            }
-            
-            // If no end time is entered but start time exists, set end time to start time + 1 hour
-            if (!endTimeValue && startTimeValue) {
-                const startTime = parseFlexibleTime(startTimeValue);
-                if (startTime) {
-                    const endTime = new Date(startTime);
-                    endTime.setHours(endTime.getHours() + 1);
-                    const endHours = endTime.getHours().toString().padStart(2, '0');
-                    const endMinutes = endTime.getMinutes().toString().padStart(2, '0');
-                    endTimeInput.value = `${endHours}:${endMinutes}`;
-                    
-                    // Update formatted results
-                    updateFormattedResults();
-                    
-                    // Return early without adjusting the time
-                    return;
-                }
-            }
-            
-            // Parse the current times
-            const currentStartTime = parseFlexibleTime(startTimeValue);
-            if (!currentStartTime) return;
-            
-            let currentEndTime = parseFlexibleTime(endTimeValue);
-            if (!currentEndTime) {
-                // If end time couldn't be parsed, set it to 1 hour after start time
-                currentEndTime = new Date(currentStartTime);
-                currentEndTime.setHours(currentEndTime.getHours() + 1);
-                
-                // Format the end time
-                const endHours = currentEndTime.getHours().toString().padStart(2, '0');
-                const endMinutes = currentEndTime.getMinutes().toString().padStart(2, '0');
-                endTimeInput.value = `${endHours}:${endMinutes}`;
-                
-                // Update formatted results
-                updateFormattedResults();
-                
-                // Return early without adjusting the time
-                return;
-            }
-            
-            // Determine the time adjustment increment based on Ctrl key state
-            const timeIncrement = event.ctrlKey ? 1 : 30; // 1分単位または30分単位
-            
-            // Adjust the end time based on wheel direction
-            if (event.deltaY < 0) {
-                // Scroll up - decrement time by increment amount
-                currentEndTime.setMinutes(currentEndTime.getMinutes() - timeIncrement);
-                
-                // Ensure end time is not earlier than start time
-                if (currentEndTime <= currentStartTime) {
-                    // Add minimum increment to start time
-                    currentEndTime = new Date(currentStartTime);
-                    currentEndTime.setMinutes(currentEndTime.getMinutes() + (event.ctrlKey ? 1 : 30));
-                }
-            } else {
-                // Scroll down - increment time by increment amount
-                currentEndTime.setMinutes(currentEndTime.getMinutes() + timeIncrement);
-            }
-            
-            // Format the new end time as HH:MM
-            const endHours = currentEndTime.getHours().toString().padStart(2, '0');
-            const endMinutes = currentEndTime.getMinutes().toString().padStart(2, '0');
-            endTimeInput.value = `${endHours}:${endMinutes}`;
-            
-            // Update formatted results
-            updateFormattedResults();
-        }
-
-        // Update formatted results
-        function updateFormattedResults() {
-            const dateEntries = document.querySelectorAll('.date-entry');
-            const formattedResults = document.getElementById('formattedResults');
-            let formattedText = '';
-            
-            dateEntries.forEach(entry => {
-                const dateInput = entry.querySelector('.date');
-                const dayOfWeek = entry.querySelector('.day-of-week');
-                const startTimeInput = entry.querySelector('.start-time');
-                const endTimeInput = entry.querySelector('.end-time');
-                
-                if (dateInput.value && startTimeInput.value) {
-                    // Parse the date for formatting as M/d
-                    let dateText = '';
                     try {
-                        const dateParts = dateInput.value.split('/');
-                        if (dateParts.length === 3) {
-                            const month = parseInt(dateParts[1]);
-                            const day = parseInt(dateParts[2]);
-                            dateText = `${month}/${day}`;
+                        const success = document.execCommand('copy');
+                        if (success) {
+                            log('clipboard', 'テキストがクリップボードにコピーされました (execCommand経由)', 'success');
                         } else {
-                            dateText = dateInput.value;
+                            log('clipboard', 'クリップボードへのコピーに失敗しました (execCommand経由)', 'error');
                         }
                     } catch (e) {
-                        dateText = dateInput.value;
+                        log('clipboard', `クリップボードへのコピーに失敗しました: ${e}`, 'error');
                     }
                     
-                    const dayOfWeekText = dayOfWeek.textContent;
-                    
-                    // Format start time as H:mm (remove leading zero from hour)
-                    let startTime = '';
-                    if (startTimeInput.value) {
-                        const startTimeParts = startTimeInput.value.split(':');
-                        if (startTimeParts.length === 2) {
-                            const hour = parseInt(startTimeParts[0]);
-                            const minute = startTimeParts[1];
-                            startTime = `${hour}:${minute}`;
-                        } else {
-                            startTime = startTimeInput.value;
-                        }
-                    }
-                    
-                    // Format end time as H:mm (remove leading zero from hour)
-                    let endTime = '';
-                    if (endTimeInput.value) {
-                        const endTimeParts = endTimeInput.value.split(':');
-                        if (endTimeParts.length === 2) {
-                            const hour = parseInt(endTimeParts[0]);
-                            const minute = endTimeParts[1];
-                            endTime = `${hour}:${minute}`;
-                        } else {
-                            endTime = endTimeInput.value;
-                        }
-                    }
-                    
-                    let line = `${dateText}${dayOfWeekText} ${startTime}`;
-                    if (endTime) {
-                        line += `～${endTime}`;
-                    }
-                    
-                    formattedText += line + '\n';
+                    document.body.removeChild(textarea);
                 }
-            });
-            
-            formattedResults.textContent = formattedText.trim();
-        }
-
-        // Copy formatted results to clipboard
-        function copyToClipboard() {
-            const formattedResults = document.getElementById('formattedResults');
-            const text = formattedResults.textContent;
-            const copyBtn = document.getElementById('copyBtn');
-            
-            // Save original button style
-            const originalBgColor = copyBtn.style.backgroundColor || '#2ecc71';
-            const originalText = copyBtn.textContent;
-            
-            if (text) {
-                // Use document.execCommand approach for better compatibility
-                const textArea = document.createElement('textarea');
-                textArea.value = text;
-                textArea.style.position = 'fixed';  // Avoid scrolling to bottom
-                document.body.appendChild(textArea);
-                textArea.select();
-                
-                let successful = false;
-                try {
-                    successful = document.execCommand('copy');
-                } catch (err) {
-                    console.error('Unable to copy', err);
-                }
-                
-                document.body.removeChild(textArea);
-                
-                if (successful) {
-                    // Change button text and color
-                    copyBtn.textContent = 'コピーしました！';
-                    copyBtn.style.backgroundColor = '#27ae60';
-                    
-                    // Reset button after 2 seconds
-                    setTimeout(function() {
-                        copyBtn.textContent = originalText;
-                        copyBtn.style.backgroundColor = originalBgColor;
-                    }, 2000);
-                } else {
-                    // Try the Clipboard API as fallback
-                    try {
-                        navigator.clipboard.writeText(text)
-                            .then(() => {
-                                // Change button text and color
-                                copyBtn.textContent = 'コピーしました！';
-                                copyBtn.style.backgroundColor = '#27ae60';
-                                
-                                // Reset button after 2 seconds
-                                setTimeout(function() {
-                                    copyBtn.textContent = originalText;
-                                    copyBtn.style.backgroundColor = originalBgColor;
-                                }, 2000);
-                            })
-                            .catch(err => {
-                                console.error('クリップボードのコピーに失敗しました:', err);
-                                alert('クリップボードへのコピーに失敗しました。テキストを手動でコピーしてください。');
-                            });
-                    } catch (err) {
-                        console.error('クリップボードのコピーに失敗しました:', err);
-                        alert('クリップボードへのコピーに失敗しました。テキストを手動でコピーしてください。');
-                    }
-                }
+            } catch (error) {
+                log('clipboard', `例外が発生しました: ${error.message}`, 'error');
             }
-        }
+        });
+
+        document.getElementById('read-clipboard').addEventListener('click', function() {
+            log('clipboard', 'クリップボードからテキストを読み込んでいます...');
+            
+            try {
+                if (navigator.clipboard && navigator.clipboard.readText) {
+                    navigator.clipboard.readText()
+                        .then(text => {
+                            document.getElementById('clipboard-text').value = text;
+                            log('clipboard', `クリップボードから読み込まれたテキスト: ${text}`, 'success');
+                        })
+                        .catch(err => {
+                            log('clipboard', `クリップボードからの読み込みに失敗しました: ${err}`, 'error');
+                            log('clipboard', 'セキュリティ制限により、クリップボードへのアクセスが拒否された可能性があります。', 'warning');
+                        });
+                } else {
+                    log('clipboard', 'このブラウザではクリップボードからのテキスト読み込みをサポートしていません', 'error');
+                }
+            } catch (error) {
+                log('clipboard', `例外が発生しました: ${error.message}`, 'error');
+            }
+        });
+
+        document.getElementById('read-clipboard-items').addEventListener('click', function() {
+            log('clipboard', 'クリップボードからアイテムを読み込んでいます...');
+            
+            try {
+                if (navigator.clipboard && navigator.clipboard.read) {
+                    navigator.clipboard.read()
+                        .then(clipboardItems => {
+                            log('clipboard', `${clipboardItems.length}個のアイテムがクリップボードにあります`, 'success');
+                            
+                            const promises = clipboardItems.map(item => {
+                                return Promise.all(item.types.map(type => {
+                                    return item.getType(type)
+                                        .then(blob => {
+                                            log('clipboard', `タイプ: ${type}, サイズ: ${blob.size} バイト`);
+                                            return { type, blob };
+                                        });
+                                }));
+                            });
+                            
+                            return Promise.all(promises);
+                        })
+                        .then(results => {
+                            log('clipboard', 'すべてのアイテムを読み込みました', 'success');
+                            
+                            // テキスト形式があれば表示
+                            const textItem = results.flat().find(item => item.type === 'text/plain');
+                            if (textItem) {
+                                return textItem.blob.text();
+                            }
+                        })
+                        .then(text => {
+                            if (text) {
+                                document.getElementById('clipboard-text').value = text;
+                                log('clipboard', `クリップボードから読み込まれたテキスト: ${text}`, 'success');
+                            }
+                        })
+                        .catch(err => {
+                            log('clipboard', `クリップボードアイテムの読み込みに失敗しました: ${err}`, 'error');
+                            log('clipboard', 'セキュリティ制限により、クリップボードへのアクセスが拒否された可能性があります。', 'warning');
+                        });
+                } else {
+                    log('clipboard', 'このブラウザではクリップボードアイテムの読み込みをサポートしていません', 'error');
+                }
+            } catch (error) {
+                log('clipboard', `例外が発生しました: ${error.message}`, 'error');
+            }
+        });
+
+        // Blob URL & ダウンロード テスト
+        let blobUrl = null;
+
+        document.getElementById('check-blob-url').addEventListener('click', function() {
+            log('blob-url', 'Blob URLサポートをチェックしています...');
+            
+            try {
+                if (window.Blob && window.URL && window.URL.createObjectURL) {
+                    log('blob-url', 'Blob URLがサポートされています', 'success');
+                    updateStatus('blob-url', 'supported');
+                } else {
+                    log('blob-url', 'Blob URLがサポートされていません', 'error');
+                    updateStatus('blob-url', 'unsupported');
+                }
+            } catch (error) {
+                log('blob-url', `例外が発生しました: ${error.message}`, 'error');
+                updateStatus('blob-url', 'unsupported');
+            }
+        });
+
+        document.getElementById('create-text-file').addEventListener('click', function() {
+            log('blob-url', 'テキストファイルを作成しています...');
+            
+            try {
+                const text = 'これはテストファイルです。クライアントサイドでJavaScriptにより生成されました。\n\n' +
+                            '生成日時: ' + new Date().toLocaleString();
+                
+                const blob = new Blob([text], { type: 'text/plain' });
+                
+                if (blobUrl) {
+                    URL.revokeObjectURL(blobUrl);
+                }
+                
+                blobUrl = URL.createObjectURL(blob);
+                log('blob-url', `Blob URL生成成功: ${blobUrl}`, 'success');
+                
+                document.getElementById('download-blob').disabled = false;
+            } catch (error) {
+                log('blob-url', `例外が発生しました: ${error.message}`, 'error');
+            }
+        });
+
+        document.getElementById('download-blob').addEventListener('click', function() {
+            if (!blobUrl) {
+                log('blob-url', 'Blob URLが作成されていません', 'warning');
+                return;
+            }
+            
+            log('blob-url', 'ファイルのダウンロードを開始します...');
+            
+            try {
+                const link = document.getElementById('download-link');
+                link.href = blobUrl;
+                link.download = 'test-file.txt';
+                
+                // IE/Edge互換性のために異なるアプローチをテスト
+                if (navigator.msSaveBlob) {
+                    // IEやEdgeの古いバージョン用
+                    navigator.msSaveBlob(new Blob(['テスト内容'], { type: 'text/plain' }), 'test-file.txt');
+                    log('blob-url', 'IE/Edge方式でダウンロード開始', 'info');
+                } else {
+                    // 標準的なアプローチ
+                    link.click();
+                    log('blob-url', '標準方式でダウンロード開始', 'info');
+                }
+                
+                log('blob-url', 'ダウンロードリクエストが送信されました', 'success');
+            } catch (error) {
+                log('blob-url', `例外が発生しました: ${error.message}`, 'error');
+            }
+        });
+
+        // 初期化時にブラウザ情報をロギング
+        window.addEventListener('DOMContentLoaded', function() {
+            const browserInfo = `${navigator.userAgent}`;
+            log('file-api', `ブラウザ情報: ${browserInfo}`, 'info');
+            log('drag-drop', `ブラウザ情報: ${browserInfo}`, 'info');
+            log('clipboard', `ブラウザ情報: ${browserInfo}`, 'info');
+            log('blob-url', `ブラウザ情報: ${browserInfo}`, 'info');
+        });
     </script>
 </body>
 </html>
