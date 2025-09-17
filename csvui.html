@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>指標データビューア</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: normal;
+        }
+        
+        .input-section {
+            background: white;
+            border: 1px solid #ddd;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .input-label {
+            display: block;
+            margin-bottom: 8px;
+            color: #666;
+            font-size: 14px;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 120px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            font-family: monospace;
+            font-size: 13px;
+            resize: vertical;
+        }
+        
+        textarea:focus {
+            outline: none;
+            border-color: #999;
+        }
+        
+        .button-group {
+            margin-top: 10px;
+        }
+        
+        button {
+            padding: 8px 16px;
+            border: 1px solid #ddd;
+            background: white;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #f8f8f8;
+        }
+        
+        .cards-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        .card {
+            background: white;
+            border: 1px solid #ddd;
+            padding: 20px;
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .indicator-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .score-badge {
+            padding: 4px 12px;
+            font-size: 14px;
+            border: 1px solid;
+        }
+        
+        .score-1 {
+            background: #f0f9ff;
+            border-color: #0284c7;
+            color: #0284c7;
+        }
+        
+        .score-0 {
+            background: #fef2f2;
+            border-color: #dc2626;
+            color: #dc2626;
+        }
+        
+        .explanation {
+            color: #555;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            font-size: 14px;
+        }
+        
+        .urls-section {
+            background: #fafafa;
+            border: 1px solid #eee;
+            padding: 12px;
+        }
+        
+        .urls-title {
+            font-weight: 600;
+            color: #666;
+            margin-bottom: 8px;
+            font-size: 12px;
+            text-transform: uppercase;
+        }
+        
+        .url-list {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        
+        .url-link {
+            color: #0066cc;
+            text-decoration: none;
+            word-break: break-all;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        
+        .url-link:hover {
+            text-decoration: underline;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+            font-size: 14px;
+        }
+        
+        .error-message {
+            background: #fef2f2;
+            color: #dc2626;
+            padding: 10px;
+            margin-top: 10px;
+            font-size: 13px;
+            border: 1px solid #fecaca;
+            display: none;
+        }
+        
+        .format-hint {
+            font-size: 12px;
+            color: #999;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>指標データビューア</h1>
+        
+        <div class="input-section">
+            <label class="input-label">データを貼り付けてください：</label>
+            <textarea id="dataInput" placeholder="タブ区切りまたはCSV形式のデータを貼り付けてください..."></textarea>
+            <div class="format-hint">※ タブ区切り、CSV（カンマ区切り）の両方に対応しています</div>
+            <div class="button-group">
+                <button onclick="clearAll()">クリア</button>
+            </div>
+            <div class="error-message" id="errorMessage"></div>
+        </div>
+        
+        <div id="cardsContainer" class="cards-container">
+            <div class="empty-state">データを貼り付けると、ここにカードが表示されます</div>
+        </div>
+    </div>
+    
+    <script>
+        const dataInput = document.getElementById('dataInput');
+        const cardsContainer = document.getElementById('cardsContainer');
+        const errorMessage = document.getElementById('errorMessage');
+        
+        // ペーストイベントの監視
+        dataInput.addEventListener('paste', function(e) {
+            setTimeout(() => {
+                parseAndDisplay(this.value);
+            }, 10);
+        });
+        
+        // 入力イベントの監視（手動入力にも対応）
+        dataInput.addEventListener('input', function(e) {
+            if (this.value.trim()) {
+                parseAndDisplay(this.value);
+            } else {
+                showEmptyState();
+            }
+        });
+        
+        function detectDelimiter(text) {
+            // 最初の行を取得
+            const firstLine = text.trim().split('\n')[0];
+            
+            // タブの数とカンマの数を数える
+            const tabCount = (firstLine.match(/\t/g) || []).length;
+            const commaCount = (firstLine.match(/,/g) || []).length;
+            
+            // より多い方を区切り文字として採用
+            return tabCount > commaCount ? '\t' : ',';
+        }
+        
+        function parseCSVLine(line, delimiter) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                const nextChar = line[i + 1];
+                
+                if (char === '"') {
+                    if (inQuotes && nextChar === '"') {
+                        current += '"';
+                        i++; // Skip next quote
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === delimiter && !inQuotes) {
+                    result.push(current);
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            
+            result.push(current);
+            return result.map(field => field.trim().replace(/^"|"$/g, ''));
+        }
+        
+        function parseAndDisplay(text) {
+            try {
+                hideError();
+                
+                const lines = text.trim().split('\n');
+                if (lines.length < 2) {
+                    showError('データが不足しています。ヘッダーとデータ行が必要です。');
+                    return;
+                }
+                
+                // 区切り文字を自動検出
+                const delimiter = detectDelimiter(text);
+                console.log('検出された区切り文字:', delimiter === '\t' ? 'タブ' : 'カンマ');
+                
+                // ヘッダー行をスキップ
+                const dataLines = lines.slice(1);
+                
+                // カードをクリア
+                cardsContainer.innerHTML = '';
+                
+                if (dataLines.length === 0) {
+                    showEmptyState();
+                    return;
+                }
+                
+                dataLines.forEach((line, index) => {
+                    if (!line.trim()) return;
+                    
+                    const columns = parseCSVLine(line, delimiter);
+                    
+                    if (columns.length < 4) {
+                        console.warn(`行 ${index + 2} のデータが不完全です`);
+                        return;
+                    }
+                    
+                    const score = columns[0].trim();
+                    const explanation = columns[1].trim();
+                    const urlsJson = columns[2].trim();
+                    const indicatorName = columns[3].trim();
+                    
+                    // URLをパース
+                    let urls = [];
+                    try {
+                        // JSON形式の配列をパース
+                        const parsed = JSON.parse(urlsJson.replace(/'/g, '"'));
+                        if (Array.isArray(parsed)) {
+                            urls = parsed;
+                        }
+                    } catch (e) {
+                        // JSON解析に失敗した場合、単純な文字列として処理
+                        if (urlsJson && urlsJson !== '[]') {
+                            // カンマ区切りのURLとして処理
+                            urls = urlsJson.replace(/[\[\]'"]/g, '').split(',').map(u => u.trim()).filter(u => u);
+                        }
+                    }
+                    
+                    // カードを作成
+                    createCard(score, indicatorName, explanation, urls);
+                });
+                
+            } catch (error) {
+                showError('データの解析中にエラーが発生しました: ' + error.message);
+                console.error(error);
+            }
+        }
+        
+        function createCard(score, indicatorName, explanation, urls) {
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            const scoreClass = score === '1' ? 'score-1' : 'score-0';
+            const scoreText = score === '1' ? '該当' : '非該当';
+            
+            let urlsHtml = '';
+            if (urls && urls.length > 0) {
+                const urlLinks = urls.map((url, idx) => `
+                    <a href="${url}" target="_blank" class="url-link">
+                        ${url}
+                    </a>
+                `).join('');
+                
+                urlsHtml = `
+                    <div class="urls-section">
+                        <div class="urls-title">参照URL (${urls.length}件)</div>
+                        <div class="url-list">
+                            ${urlLinks}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            card.innerHTML = `
+                <div class="card-header">
+                    <div class="indicator-name">${indicatorName}</div>
+                    <div class="score-badge ${scoreClass}">${scoreText}</div>
+                </div>
+                <div class="explanation">${explanation}</div>
+                ${urlsHtml}
+            `;
+            
+            cardsContainer.appendChild(card);
+        }
+        
+        function clearAll() {
+            dataInput.value = '';
+            showEmptyState();
+            hideError();
+        }
+        
+        function showEmptyState() {
+            cardsContainer.innerHTML = '<div class="empty-state">データを貼り付けると、ここにカードが表示されます</div>';
+        }
+        
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+        
+        function hideError() {
+            errorMessage.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
